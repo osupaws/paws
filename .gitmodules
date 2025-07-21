@@ -1,3 +1,5 @@
-[submodule "frontend/ui-kit"]
+[submodule "Paws-UI-Kit"]
 	path = frontend/ui-kit
 	url = https://github.com/shsh-x/Paws-UI-Kit
+	branch = main
+
