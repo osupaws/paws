@@ -1,13 +1,19 @@
 <script setup lang="ts">
-import { ButtonHTMLAttributes } from "vue";
+import { RouterLink } from "vue-router";
 
 import styles from "./SidebarButton.module.css";
 
-const props = defineProps</* @vue-ignore */ ButtonHTMLAttributes>();
+interface Props {
+  to: string;
+}
+
+const { to } = defineProps<Props>();
 </script>
 
 <template>
-  <button v-bind="props" :class="styles.button">
-    <slot />
-  </button>
+  <RouterLink :to="to">
+    <button :class="styles.button">
+      <slot />
+    </button>
+  </RouterLink>
 </template>

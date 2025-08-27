@@ -51,6 +51,7 @@
 
 # VS Code settings (optional, commit if you want to share workspace settings)
 .vscode/
+.idea/
 
 # --- Operating System ---
 .DS_Store              # macOS

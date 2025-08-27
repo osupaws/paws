@@ -1,0 +1,18 @@
+.card {
+	padding: 2px 16px 24px;
+	background-color: var(--paws-color-bg-darkest);
+	border-radius: 16px;
+}
+
+.cardTitle {
+	font-weight: 600;
+	font-size: 28px;
+}
+
+.cardContent {
+	margin-top: 6px;
+}
+
+.cardContentNoTitle {
+	margin-top: 22px;
+}

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BaseIcon } from "@renderer/components/UI/Icon/Icon";
+import { BaseIcon } from "@renderer/components/UI/Icon/icon";
 
 const {
   color = "#fff",

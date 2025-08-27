@@ -1,6 +1,7 @@
 .content {
 	flex: 1;
 	height: 100%;
+	padding: 12px 0;
 	background-color: var(--paws-color-bg-dark);
 	border-radius: 16px 0 0 0;
 }

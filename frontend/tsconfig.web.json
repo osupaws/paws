@@ -15,9 +15,6 @@
     "paths": {
       "@renderer/*": [
         "src/renderer/src/*"
-      ],
-      "@ui-kit/*": [
-        "ui-kit/src/components/*"
       ]
     }
   }

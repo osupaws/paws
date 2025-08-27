@@ -40,6 +40,7 @@ export default defineConfig({
           main: resolve(__dirname, "src/renderer/index.html"),
           splash: resolve(__dirname, "src/renderer/splash.html"),
         },
+        external: ["@paws/ui"],
       },
     },
     publicDir: resolve(__dirname, "public"),

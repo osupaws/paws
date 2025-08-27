@@ -8,18 +8,18 @@ import styles from "./Sidebar.module.css";
 <template>
   <div :class="styles.sidebar">
     <div :class="styles.pluginList">
-      <SidebarButton>Plugin</SidebarButton>
-      <SidebarButton>Plugin</SidebarButton>
-      <SidebarButton>Plugin</SidebarButton>
-      <SidebarButton>Plugin</SidebarButton>
-      <SidebarButton>Plugin</SidebarButton>
-      <SidebarButton>Plugin</SidebarButton>
-      <SidebarButton>Plugin</SidebarButton>
-      <SidebarButton>Plugin</SidebarButton>
+      <SidebarButton to="/plugin">Plugin</SidebarButton>
+      <SidebarButton to="/plugin">Plugin</SidebarButton>
+      <SidebarButton to="/plugin">Plugin</SidebarButton>
+      <SidebarButton to="/plugin">Plugin</SidebarButton>
+      <SidebarButton to="/plugin">Plugin</SidebarButton>
+      <SidebarButton to="/plugin">Plugin</SidebarButton>
+      <SidebarButton to="/plugin">Plugin</SidebarButton>
+      <SidebarButton to="/plugin">Plugin</SidebarButton>
     </div>
 
     <div :class="styles.settings">
-      <SidebarButton>
+      <SidebarButton to="/settings">
         <SettingsIcon width="40px" height="40px" />
       </SidebarButton>
     </div>
