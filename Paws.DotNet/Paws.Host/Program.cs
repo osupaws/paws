@@ -26,19 +26,10 @@ var app = builder.Build();
 var pluginManager = app.Services.GetRequiredService<PluginManager>();
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-var approvedGuids = new List<string>();
-if (args.Length > 0 && !string.IsNullOrWhiteSpace(args[0]))
-{
-    try
-    {
-        approvedGuids = JsonSerializer.Deserialize<List<string>>(args[0]) ?? new List<string>();
-    }
-    catch (Exception ex)
-    {
-        logger.LogError(ex, "Error deserializing approved plugin GUIDs from command line.");
-    }
-}
-pluginManager.DiscoverAndLoadPlugins(approvedGuids);
+// HACK: For development, all discovered plugins are automatically approved.
+pluginManager.DiscoverAndLoadPlugins(Enumerable.Empty<string>()); // Step 1: Discover all plugins.
+var discoveredIds = pluginManager.GetDiscoveredPlugins().Select(p => p.Id).ToList();
+pluginManager.DiscoverAndLoadPlugins(discoveredIds); // Step 2: Load all discovered plugins.
 
 logger.LogInformation("Paws.Host C# Backend started successfully.");
 

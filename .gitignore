@@ -1,5 +1,8 @@
 # Git Ignore for Paws PreRelease (pawsprtp)
 
+.gemini
+DbTest
+
 # --- Electron App ---
 # Dependency directories
 /paws-electron-app/node_modules/

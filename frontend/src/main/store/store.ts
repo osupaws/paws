@@ -12,7 +12,7 @@ const schema: Schema<StoreType> = {
   },
   approvedPlugins: {
     type: "array",
-    default: [],
+    default: ["a1b2c3d4-e5f6-4a9b-8c7d-6e5f4a3b2c1d"],
   },
 };
 
