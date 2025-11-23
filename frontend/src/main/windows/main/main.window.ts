@@ -20,6 +20,11 @@ export const createMainWindow = (
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
+      // TEMPORARY! Disable web security for development/testing, often necessary for local file access via custom protocols.
+      // WARNING: Reconsider for production builds.
+      webSecurity: false,
+      // Disable preferred size mode to prevent autofill related console errors.
+      enablePreferredSizeMode: false,
     },
     icon: join(__dirname, "assets/icon.png"),
   });
