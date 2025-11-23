@@ -101,10 +101,12 @@ app.whenReady().then(async () => {
 
         const appFilePath = join(basePath, assetPath);
         
+        /*
         log.info(`[paws-app] Request for: ${assetPath}`);
         log.info(`[paws-app] Base path: ${basePath}`);
         log.info(`[paws-app] Resolved path: ${appFilePath}`);
         log.info(`[paws-app] File exists: ${existsSync(appFilePath)}`);
+        */
 
         return net.fetch(encodeURI(`file://${appFilePath.replace(/\\/g, "/")}`));
       });
