@@ -16,7 +16,26 @@
 
         // Handle one-way notices from the main renderer
         if (channel && channel === 'notice') {
-            noticeHandlers.forEach(handler => handler(event.data.payload));
+            const notice = event.data.payload;
+            noticeHandlers.forEach(handler => handler(notice));
+
+            // Specifically handle theme changes to update stylesheets
+            if (notice.type === 'theme-changed') {
+                const timestamp = new Date().getTime();
+                const baseLink = document.getElementById('paws-theme-base-link');
+                const customLink = document.getElementById('paws-theme-custom-link');
+                const themeInfo = notice.theme;
+
+                if (baseLink && themeInfo) {
+                    baseLink.href = `paws-app://${themeInfo.file}?v=${timestamp}`;
+                }
+                // We will handle custom themes later.
+                // if (customLink && themeInfo && themeInfo.customFile) {
+                //     customLink.href = `paws-app://${themeInfo.customFile}?v=${timestamp}`;
+                // } else if (customLink) {
+                //     customLink.href = "";
+                // }
+            }
             return;
         }
         
