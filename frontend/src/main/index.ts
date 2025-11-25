@@ -91,25 +91,19 @@ app.whenReady().then(async () => {
   }
 
   // Register `paws-app://` protocol to serve shared frontend files.
-  protocol.handle("paws-app", (request) => {
-    const url = new URL(request.url);
-    const assetPath = url.hostname; // The asset is the 'hostname' in a custom protocol
+      protocol.handle("paws-app", (request) => {
+        const url = new URL(request.url);
+        // Combine hostname and pathname to get the full path, e.g., 'themes/light.css'
+        const assetPath = `${url.hostname}${url.pathname}`;
 
-    const basePath = is.dev
-      ? join(__dirname, "..", "..", "public") // In dev, serve from the source 'public' folder
-      : join(__dirname, "..", "renderer"); // In prod, serve from the built 'renderer' folder
+        const basePath = is.dev
+          ? join(__dirname, "..", "..", "public") // In dev, serve from the source 'public' folder
+          : join(__dirname, "..", "renderer");     // In prod, serve from the built 'renderer' folder
 
-    const appFilePath = join(basePath, assetPath);
-
-    /*
-        log.info(`[paws-app] Request for: ${assetPath}`);
-        log.info(`[paws-app] Base path: ${basePath}`);
-        log.info(`[paws-app] Resolved path: ${appFilePath}`);
-        log.info(`[paws-app] File exists: ${existsSync(appFilePath)}`);
-        */
-
-    return net.fetch(encodeURI(`file://${appFilePath.replace(/\\/g, "/")}`));
-  });
+        const appFilePath = join(basePath, assetPath);
+        
+        return net.fetch(encodeURI(`file://${appFilePath.replace(/\\/g, "/")}`));
+      });
 
   // --- PAWS Plugin Protocol ---
   // This protocol is used to serve the UI of a loaded plugin.

@@ -1,0 +1,17 @@
+@layer base {
+:root {
+	--font-generic: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+
+	--paws-color-accent-primary: #8a2be2; /* Example: Brighter purple */
+	--paws-color-accent-secondary: #c080ff; /* Example: Lighter purple */
+	--paws-color-text-primary: #1b1b1b; /* Dark text for light background */
+	--paws-color-text-secondary: #4a4a4a;
+	--paws-color-text-on-accent: #ffffff;
+	--paws-color-success: #4caf50;
+	--paws-color-warning: #ffc107;
+	--paws-color-error: #f44336;
+	--paws-color-bg-darkest: #f8f8f8; /* Very light background */
+	--paws-color-bg-dark: #efefef;
+	--paws-color-bg-lighter: #e0e0e0;
+}
+}
