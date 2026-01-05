@@ -11,22 +11,11 @@ export interface Theme {
 
 // Reactive store for theme management
 export const themeState = reactive({
-  // Initial theme; will be loaded from persisted storage later
-  activeThemeId: "dark",
+  // Load the persisted theme ID on startup, defaulting to 'dark'.
+  activeThemeId: window.api.store.get('activeThemeId', 'dark'),
   availableThemes: [
-    {
-      id: "dark",
-      name: "Dark (Default)",
-      base: "dark",
-      file: "themes/dark.css",
-    },
-    { id: "light", name: "Light", base: "light", file: "themes/light.css" },
-    {
-      id: "incomplete-test",
-      name: "Incomplete Test",
-      base: "dark",
-      file: "themes/incomplete-test/theme.css",
-    },
+    { id: 'dark', name: 'Dark (Default)', base: 'dark', file: 'themes/dark.css' },
+    { id: 'light', name: 'Light', base: 'light', file: 'themes/light.css' }
     // Custom themes will be dynamically loaded here later
   ] as Theme[],
 });
