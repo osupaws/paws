@@ -6,11 +6,16 @@ import { computed } from "vue";
 const currentTheme = computed(() => themeState.activeThemeId);
 // TEMPORARY THEME SWITCH
 const toggleTheme = (): void => {
-  const currentIdx = themeState.availableThemes.findIndex(
-    (t) => t.id === themeState.activeThemeId,
-  );
-  const nextIdx = (currentIdx + 1) % themeState.availableThemes.length;
-  themeState.activeThemeId = themeState.availableThemes[nextIdx].id;
+  // Add transition class to body
+  document.body.classList.add('paws-theme-transitioning');
+
+  // Perform theme change
+  themeState.activeThemeId = themeState.activeThemeId === 'dark' ? 'light' : 'dark';
+
+  // Remove transition class after animation duration
+  setTimeout(() => {
+    document.body.classList.remove('paws-theme-transitioning');
+  }, 300); // Match CSS transition duration
 };
 </script>
 

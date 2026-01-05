@@ -9,39 +9,40 @@ defineProps<{
 
 const iframeRef = ref<HTMLIFrameElement | null>(null);
 
-function postThemeToIframe(iframe: HTMLIFrameElement): void {
+function postThemeToIframe(iframe: HTMLIFrameElement, isInitial = false): void {
   const themeInfo = getActiveThemeInfo();
   // We must send a plain, clonable object, not a Vue Proxy object.
   const plainThemeInfo = JSON.parse(JSON.stringify(themeInfo));
 
   iframe.contentWindow?.postMessage(
     {
-      channel: "notice",
+      channel: 'notice',
       payload: {
-        type: "theme-changed",
+        type: 'theme-changed',
         theme: plainThemeInfo,
-      },
+        initial: isInitial
+      }
     },
-    "*",
+    '*'
   );
 }
 
 // --- Message Sending (Parent -> Iframe) ---
 watch(iframeRef, (iframe) => {
   if (iframe) {
-    iframe.addEventListener("load", () => {
+    iframe.addEventListener('load', () => {
       // Once the iframe is loaded, send the initial mode and theme.
       iframe.contentWindow?.postMessage(
         {
-          channel: "notice",
+          channel: 'notice',
           payload: {
-            type: "mode-changed",
-            mode: "stable",
+            type: 'mode-changed',
+            mode: 'stable',
           },
         },
-        "*",
+        '*',
       );
-      postThemeToIframe(iframe);
+      postThemeToIframe(iframe, true); // Send initial theme without animation
     });
   }
 });
@@ -51,7 +52,7 @@ watch(
   () => themeState.activeThemeId,
   () => {
     if (iframeRef.value) {
-      postThemeToIframe(iframeRef.value);
+      postThemeToIframe(iframeRef.value, false); // Send theme update with animation
     }
   },
 );

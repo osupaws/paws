@@ -25,16 +25,26 @@
                 const baseLink = document.getElementById('paws-theme-base-link');
                 const customLink = document.getElementById('paws-theme-custom-link');
                 const themeInfo = notice.theme;
+                const isInitial = notice.initial || false;
 
-                if (baseLink && themeInfo) {
-                    baseLink.href = `paws-app://${themeInfo.file}?v=${timestamp}`;
+                const applyTheme = () => {
+                    if (baseLink && themeInfo) {
+                        baseLink.href = `paws-app://${themeInfo.file}?v=${timestamp}`;
+                    }
+                    // We will handle custom themes later.
+                };
+
+                if (isInitial) {
+                    // On initial load, just apply the theme instantly
+                    applyTheme();
+                } else {
+                    // On a theme switch, wrap the change in the animation class
+                    document.body.classList.add('paws-theme-transitioning');
+                    applyTheme();
+                    setTimeout(() => {
+                        document.body.classList.remove('paws-theme-transitioning');
+                    }, 300);
                 }
-                // We will handle custom themes later.
-                // if (customLink && themeInfo && themeInfo.customFile) {
-                //     customLink.href = `paws-app://${themeInfo.customFile}?v=${timestamp}`;
-                // } else if (customLink) {
-                //     customLink.href = "";
-                // }
             }
             return;
         }
