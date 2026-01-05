@@ -1,4 +1,4 @@
-import { reactive, watch } from 'vue';
+import { reactive, watch } from "vue";
 
 // Define the structure for a Theme (built-in or custom)
 export interface Theme {
@@ -12,28 +12,47 @@ export interface Theme {
 // Reactive store for theme management
 export const themeState = reactive({
   // Initial theme; will be loaded from persisted storage later
-  activeThemeId: 'dark',
+  activeThemeId: "dark",
   availableThemes: [
-    { id: 'dark', name: 'Dark (Default)', base: 'dark', file: 'themes/dark.css' },
-    { id: 'light', name: 'Light', base: 'light', file: 'themes/light.css' }
+    {
+      id: "dark",
+      name: "Dark (Default)",
+      base: "dark",
+      file: "themes/dark.css",
+    },
+    { id: "light", name: "Light", base: "light", file: "themes/light.css" },
+    {
+      id: "incomplete-test",
+      name: "Incomplete Test",
+      base: "dark",
+      file: "themes/incomplete-test/theme.css",
+    },
     // Custom themes will be dynamically loaded here later
   ] as Theme[],
 });
 
 // Function to get the full theme info based on activeThemeId
 export function getActiveThemeInfo(): Theme {
-  const theme = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
+  const theme = themeState.availableThemes.find(
+    (t) => t.id === themeState.activeThemeId,
+  );
   // Fallback to dark if activeThemeId is not found (e.g., if a custom theme was deleted)
-  return theme || themeState.availableThemes.find(t => t.id === 'dark')!;
+  return theme || themeState.availableThemes.find((t) => t.id === "dark")!;
 }
 
 // Watch for changes in activeThemeId and update the main app's theme link
-watch(() => themeState.activeThemeId, (newThemeId) => {
-  const themeInfo = getActiveThemeInfo();
-  const themeLink = document.getElementById('app-theme-link') as HTMLLinkElement;
-  if (themeLink) {
-    // This will load paws-app://themes/dark.css or light.css directly
-    // The @layer custom will be appended if themeInfo.customFile exists
-    themeLink.href = `paws-app://${themeInfo.file}`;
-  }
-}, { immediate: true }); // Immediate ensures the theme is set on first load
+watch(
+  () => themeState.activeThemeId,
+  (newThemeId) => {
+    const themeInfo = themeState.availableThemes.find(
+      (t) => t.id === newThemeId,
+    );
+    const themeLink = document.getElementById(
+      "app-theme-link",
+    ) as HTMLLinkElement;
+    if (themeLink && themeInfo) {
+      themeLink.href = `paws-app://${themeInfo.file}`;
+    }
+  },
+  { immediate: true },
+); // Immediate ensures the theme is set on first load

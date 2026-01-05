@@ -1,20 +1,33 @@
 <script setup lang="ts">
 import Layout from "@renderer/components/Layout/Layout.vue";
-import { themeState } from '@renderer/state/theme.state';
-import { computed } from 'vue';
+import { themeState } from "@renderer/state/theme.state";
+import { computed } from "vue";
 
 const currentTheme = computed(() => themeState.activeThemeId);
-
-const toggleTheme = () => {
-  themeState.activeThemeId = themeState.activeThemeId === 'dark' ? 'light' : 'dark';
+// TEMPORARY THEME SWITCH
+const toggleTheme = (): void => {
+  const currentIdx = themeState.availableThemes.findIndex(
+    (t) => t.id === themeState.activeThemeId,
+  );
+  const nextIdx = (currentIdx + 1) % themeState.availableThemes.length;
+  themeState.activeThemeId = themeState.availableThemes[nextIdx].id;
 };
 </script>
 
 <template>
   <div class="app-container">
     <Layout />
-    <button @click="toggleTheme" style="position: absolute; bottom: 10px; right: 10px; padding: 10px; z-index: 1000;">
-      Switch to {{ currentTheme === 'dark' ? 'Light' : 'Dark' }} Theme
+    <button
+      style="
+        position: absolute;
+        bottom: 10px;
+        right: 10px;
+        padding: 10px;
+        z-index: 1000;
+      "
+      @click="toggleTheme"
+    >
+      Switch to {{ currentTheme === "dark" ? "Light" : "Dark" }} Theme
     </button>
   </div>
 </template>
