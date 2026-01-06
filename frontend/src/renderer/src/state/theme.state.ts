@@ -1,47 +1,51 @@
-import { reactive, watch } from "vue";
+import { reactive } from 'vue';
 
-// Define the structure for a Theme (built-in or custom)
+// Define the structure for a Theme
 export interface Theme {
-  id: string; // Unique ID (e.g., 'dark', 'light', or custom theme name)
-  name: string; // Display name (e.g., 'Dark (Default)', 'My Purple Theme')
-  base: string; // Which built-in theme this is based on ('dark' or 'light')
-  file: string; // Path to the theme's main CSS file (e.g., 'themes/dark.css' or 'themes/my-custom-theme/theme.css')
-  customFile?: string; // Optional: Path to a custom user CSS file if it's an override theme
+  id: string;
+  name: string;
+  base: string;
+  file: string;
 }
+
+// Hardcoded core themes to ensure they are always available
+const coreThemes: Theme[] = [
+  { id: 'dark', name: 'Dark (Default)', base: 'dark', file: 'themes/dark.css' },
+  { id: 'light', name: 'Light', base: 'light', file: 'themes/light.css' }
+];
 
 // Reactive store for theme management
 export const themeState = reactive({
-  // Load the persisted theme ID on startup, defaulting to 'dark'.
-  activeThemeId: window.api.store.get('activeThemeId', 'dark'),
-  availableThemes: [
-    { id: 'dark', name: 'Dark (Default)', base: 'dark', file: 'themes/dark.css' },
-    { id: 'light', name: 'Light', base: 'light', file: 'themes/light.css' }
-    // Custom themes will be dynamically loaded here later
-  ] as Theme[],
+  activeThemeId: 'dark', // Will be properly set after initialization
+  availableThemes: [...coreThemes] as Theme[],
 });
+
+/**
+ * Fetches custom themes and combines them with core themes.
+ * Then, initializes the active theme from storage, ensuring it's a valid, available theme.
+ */
+export async function initializeThemes(): Promise<void> {
+  console.log('[ThemeState] Initializing themes...');
+  
+  const customThemes = await window.api.themes.getCustom();
+  themeState.availableThemes = [...coreThemes, ...customThemes];
+  console.log(`[ThemeState] Available themes populated. Total: ${themeState.availableThemes.length}`);
+
+  const savedThemeId = window.api.store.get('activeThemeId', 'dark');
+  const isSavedThemeAvailable = themeState.availableThemes.some(t => t.id === savedThemeId);
+  
+  if (isSavedThemeAvailable) {
+    themeState.activeThemeId = savedThemeId;
+    console.log(`[ThemeState] Set active theme from storage: ${savedThemeId}`);
+  } else {
+    themeState.activeThemeId = 'dark';
+    console.log(`[ThemeState] Saved theme '${savedThemeId}' not found. Defaulting to 'dark'.`);
+  }
+}
 
 // Function to get the full theme info based on activeThemeId
 export function getActiveThemeInfo(): Theme {
-  const theme = themeState.availableThemes.find(
-    (t) => t.id === themeState.activeThemeId,
-  );
-  // Fallback to dark if activeThemeId is not found (e.g., if a custom theme was deleted)
-  return theme || themeState.availableThemes.find((t) => t.id === "dark")!;
+  const theme = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
+  // Fallback to dark if activeThemeId is somehow still invalid
+  return theme || coreThemes[0];
 }
-
-// Watch for changes in activeThemeId and update the main app's theme link
-watch(
-  () => themeState.activeThemeId,
-  (newThemeId) => {
-    const themeInfo = themeState.availableThemes.find(
-      (t) => t.id === newThemeId,
-    );
-    const themeLink = document.getElementById(
-      "app-theme-link",
-    ) as HTMLLinkElement;
-    if (themeLink && themeInfo) {
-      themeLink.href = `paws-app://${themeInfo.file}`;
-    }
-  },
-  { immediate: true },
-); // Immediate ensures the theme is set on first load
