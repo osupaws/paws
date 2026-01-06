@@ -10,29 +10,47 @@ watch(() => themeState.activeThemeId, (newThemeId) => {
   // 1. Save to store
   window.api.store.set('activeThemeId', newThemeId);
 
-  // 2. Update the stylesheet <link> in the DOM
+  // 2. Update the stylesheet <link>s in the DOM
   const themeInfo = getActiveThemeInfo();
-  const themeLink = document.getElementById('app-theme-link') as HTMLLinkElement;
-  if (themeLink) {
-    themeLink.href = `paws-app://${themeInfo.file}`;
+  const baseThemeInfo = themeState.availableThemes.find(t => t.id === themeInfo.base);
+  
+  const baseLink = document.getElementById('app-theme-base-link') as HTMLLinkElement;
+  const customLink = document.getElementById('app-theme-custom-link') as HTMLLinkElement;
+
+  if (baseLink && baseThemeInfo) {
+    baseLink.href = `paws-app://${baseThemeInfo.file}`;
+  }
+
+  if (customLink && themeInfo.id !== themeInfo.base) { // It's a custom theme
+    customLink.href = `paws-app://${themeInfo.file}`;
+  } else { // It's a base theme
+    customLink.href = ''; // Clear custom styles
   }
 }, { immediate: true });
 
 
-const currentTheme = computed(() => themeState.activeThemeId);
+const currentTheme = computed(() => getActiveThemeInfo());
+
 // TEMPORARY THEME SWITCH
 const toggleTheme = (): void => {
   // Add transition class to body for animation
   document.body.classList.add('paws-theme-transitioning');
 
-  // Perform state change, which will be picked up by the watcher
-  themeState.activeThemeId = themeState.activeThemeId === 'dark' ? 'light' : 'dark';
+  const currentIndex = themeState.availableThemes.findIndex(t => t.id === themeState.activeThemeId);
+  const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
+  themeState.activeThemeId = themeState.availableThemes[nextIndex].id;
 
   // Remove transition class after animation duration
   setTimeout(() => {
     document.body.classList.remove('paws-theme-transitioning');
   }, 300); // Match CSS transition duration
 };
+
+const nextThemeName = computed(() => {
+  const currentIndex = themeState.availableThemes.findIndex(t => t.id === themeState.activeThemeId);
+  const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
+  return themeState.availableThemes[nextIndex]?.name || 'Unknown';
+});
 </script>
 
 <template>
@@ -48,7 +66,7 @@ const toggleTheme = (): void => {
       "
       @click="toggleTheme"
     >
-      Switch to {{ currentTheme === "dark" ? "Light" : "Dark" }} Theme
+      Switch to {{ nextThemeName }}
     </button>
   </div>
 </template>

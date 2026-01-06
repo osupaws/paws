@@ -10,16 +10,15 @@ defineProps<{
 const iframeRef = ref<HTMLIFrameElement | null>(null);
 
 function postThemeToIframe(iframe: HTMLIFrameElement, isInitial = false): void {
-  const themeInfo = getActiveThemeInfo();
   // We must send a plain, clonable object, not a Vue Proxy object.
-  const plainThemeInfo = JSON.parse(JSON.stringify(themeInfo));
+  const plainThemeState = JSON.parse(JSON.stringify(themeState));
 
   iframe.contentWindow?.postMessage(
     {
       channel: 'notice',
       payload: {
         type: 'theme-changed',
-        theme: plainThemeInfo,
+        themeState: plainThemeState,
         initial: isInitial
       }
     },

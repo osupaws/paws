@@ -93,14 +93,23 @@ app.whenReady().then(async () => {
   // Register `paws-app://` protocol to serve shared frontend files.
       protocol.handle("paws-app", (request) => {
         const url = new URL(request.url);
-        // Combine hostname and pathname to get the full path, e.g., 'themes/light.css'
+        // assetPath will be like 'themes/matrix-dark-theme/theme.css'
         const assetPath = `${url.hostname}${url.pathname}`;
 
-        const basePath = is.dev
+        // 1. Check for the asset in the user's custom theme directory first.
+        const userThemesPath = join(app.getPath('userData'), 'themes');
+        const customThemeAssetPath = join(userThemesPath, assetPath.replace('themes/', '')); // Remove 'themes/' prefix
+        
+        if (existsSync(customThemeAssetPath)) {
+          return net.fetch(encodeURI(`file://${customThemeAssetPath.replace(/\\/g, "/")}`));
+        }
+
+        // 2. If not found, fall back to the built-in public directory.
+        const publicBasePath = is.dev
           ? join(__dirname, "..", "..", "public") // In dev, serve from the source 'public' folder
           : join(__dirname, "..", "renderer");     // In prod, serve from the built 'renderer' folder
 
-        const appFilePath = join(basePath, assetPath);
+        const appFilePath = join(publicBasePath, assetPath);
         
         return net.fetch(encodeURI(`file://${appFilePath.replace(/\\/g, "/")}`));
       });

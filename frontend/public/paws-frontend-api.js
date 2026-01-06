@@ -24,14 +24,26 @@
                 const timestamp = new Date().getTime();
                 const baseLink = document.getElementById('paws-theme-base-link');
                 const customLink = document.getElementById('paws-theme-custom-link');
-                const themeInfo = notice.theme;
+                
+                const themeState = notice.themeState;
+                if (!themeState) return;
+
+                const activeThemeInfo = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
+                if (!activeThemeInfo) return;
+
+                const baseThemeInfo = themeState.availableThemes.find(t => t.id === activeThemeInfo.base);
                 const isInitial = notice.initial || false;
 
                 const applyTheme = () => {
-                    if (baseLink && themeInfo) {
-                        baseLink.href = `paws-app://${themeInfo.file}?v=${timestamp}`;
+                    if (baseLink && baseThemeInfo) {
+                        baseLink.href = `paws-app://${baseThemeInfo.file}?v=${timestamp}`;
                     }
-                    // We will handle custom themes later.
+
+                    if (customLink && activeThemeInfo.id !== activeThemeInfo.base) { // It's a custom theme
+                        customLink.href = `paws-app://${activeThemeInfo.file}?v=${timestamp}`;
+                    } else { // It's a base theme
+                        customLink.href = ''; // Clear custom styles
+                    }
                 };
 
                 if (isInitial) {
