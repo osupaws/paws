@@ -20,46 +20,52 @@
             noticeHandlers.forEach(handler => handler(notice));
 
             // Specifically handle theme changes to update stylesheets
-            if (notice.type === 'theme-changed') {
-                const timestamp = new Date().getTime();
-                const baseLink = document.getElementById('paws-theme-base-link');
-                const customLink = document.getElementById('paws-theme-custom-link');
-                
-                const themeState = notice.themeState;
-                if (!themeState) return;
+            if (notice.type === "theme-changed") {
+				const timestamp = new Date().getTime();
+				const baseLink = document.getElementById("paws-theme-base-link");
+				const customLink = document.getElementById("paws-theme-custom-link");
 
-                const activeThemeInfo = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
-                if (!activeThemeInfo) return;
+				const themeState = notice.themeState;
+				if (!themeState) return;
 
-                const baseThemeInfo = themeState.availableThemes.find(t => t.id === activeThemeInfo.base);
-                const isInitial = notice.initial || false;
+				const activeThemeInfo = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
+				if (!activeThemeInfo) return;
 
-                const applyTheme = () => {
-                    if (baseLink && baseThemeInfo) {
-                        baseLink.href = `paws-app://${baseThemeInfo.file}?v=${timestamp}`;
-                    }
+				const isInitial = notice.initial || false;
 
-                    if (customLink && activeThemeInfo.id !== activeThemeInfo.base) { // It's a custom theme
-                        customLink.href = `paws-app://${activeThemeInfo.file}?v=${timestamp}`;
-                    } else { // It's a base theme
-                        customLink.href = ''; // Clear custom styles
-                    }
-                };
+				const applyTheme = () => {
+					const baseThemeId = activeThemeInfo.base; // 'dark' or 'light'
+					const fullBaseThemeId = `paws-${baseThemeId}`; // 'paws-dark' or 'paws-light'
+					const baseThemeInfoFound = themeState.availableThemes.find(t => t.id === fullBaseThemeId);
 
-                if (isInitial) {
-                    // On initial load, just apply the theme instantly
-                    applyTheme();
-                } else {
-                    // On a theme switch, wrap the change in the animation class
-                    document.body.classList.add('paws-theme-transitioning');
-                    applyTheme();
-                    setTimeout(() => {
-                        document.body.classList.remove('paws-theme-transitioning');
-                    }, 300);
-                }
-            }
-            return;
-        }
+					if (baseLink && baseThemeInfoFound) {
+						// Core themes are always served from the app's internal assets
+						baseLink.href = `paws-app://${baseThemeInfoFound.file}?v=${timestamp}`;
+					}
+
+					if (customLink && activeThemeInfo.isCustom) {
+						// Custom themes are served from the user's data directory
+						customLink.href = `paws-theme://${activeThemeInfo.file}?v=${timestamp}`; // Renamed protocol
+					} else {
+						// It's a core theme, so no custom styles are needed
+						customLink.href = "";
+					}
+				};
+
+				if (isInitial) {
+					// On initial load, just apply the theme instantly
+					applyTheme();
+				} else {
+					// On a theme switch, wrap the change in the animation class
+					document.body.classList.add("paws-theme-transitioning");
+					applyTheme();
+					setTimeout(() => {
+						document.body.classList.remove("paws-theme-transitioning");
+					}, 300);
+				}
+			}
+			return;
+		}
         
         // Handle promise-based request/response
         if (pendingPromises.has(id)) {

@@ -15,13 +15,13 @@ interface BackendAPI {
 
 declare global {
   interface Window {
-    api: {
-      electron: ElectronAPI;
-      store: StoreAPI;
-      splash: SplashAPI;
-      // This is the line that was missing from this specific file
-      backend: BackendAPI;
-    };
-  }
+		api: {
+			electron: ElectronAPI;
+			store: StoreAPI;
+			splash: SplashAPI;
+			// This is the line that was missing from this specific file
+			backend: BackendAPI;
+		};
+	}
 }
 // --- END: MODIFIED/ADDED CODE ---
