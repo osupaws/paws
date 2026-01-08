@@ -3,57 +3,85 @@ using Realms;
 
 namespace Paws.Host
 {
-    /// <summary>
-    /// Manages the main Paws application database.
-    /// </summary>
     public class PawsDbService
     {
         private readonly ILogger<PawsDbService> _logger;
-        private readonly Realm _realm;
+        private readonly RealmConfiguration _config;
 
         public PawsDbService(ILogger<PawsDbService> logger)
         {
             _logger = logger;
             
-            // Define the path for the main application database
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             var pawsDir = Path.Combine(appData, "Paws");
-            Directory.CreateDirectory(pawsDir); // Ensures the directory exists
+            Directory.CreateDirectory(pawsDir);
             var dbPath = Path.Combine(pawsDir, "paws.realm");
 
-            // Define the configuration for our main database
-            var config = new RealmConfiguration(dbPath)
+            _config = new RealmConfiguration(dbPath)
             {
-                // IsDynamic = false is the default, but we're explicit.
-                // We are providing a specific schema.
-                IsDynamic = false, 
+                IsDynamic = false,
                 Schema = new[]
                 {
                     typeof(FileEntry),
-                    typeof(Theme)
+                    typeof(Theme),
+                    typeof(PawsConfig)
                 },
                 SchemaVersion = 1,
             };
+        }
 
+        // This method can be used on startup to validate the config and ensure the DB can be opened.
+        public async Task InitializeAsync()
+        {
             try
             {
-                _realm = Realm.GetInstance(config);
-                _logger.LogInformation("Paws database opened successfully at {path}", dbPath);
+                // Open and immediately close a Realm instance to check for errors.
+                using var realm = await Realm.GetInstanceAsync(_config);
+                _logger.LogInformation("Paws database configuration validated successfully at {path}", _config.DatabasePath);
             }
             catch (Exception ex)
             {
-                _logger.LogCritical(ex, "Failed to open Paws database at {path}", dbPath);
-                // This is a critical failure, rethrow to stop the application
+                _logger.LogCritical(ex, "Failed to open Paws database at {path}", _config.DatabasePath);
                 throw;
             }
         }
-
-        // Method to get all themes from the database
+        
         public IQueryable<Theme> GetAllThemes()
         {
-            return _realm.All<Theme>();
+            using var realm = Realm.GetInstance(_config);
+            // We must convert the live Realm results to a list in memory
+            // to be able to use it outside of the realm's thread/context.
+            return realm.All<Theme>().ToList().AsQueryable();
         }
 
-        // Add more methods later for adding/updating themes, etc.
+        public PawsConfig GetConfig()
+        {
+            using var realm = Realm.GetInstance(_config);
+            var config = realm.Find<PawsConfig>(0);
+            if (config == null)
+            {
+                realm.Write(() =>
+                {
+                    config = realm.Add(new PawsConfig { Id = 0 });
+                });
+            }
+            // Freeze the object to make it thread-safe and returnable.
+            return config!.Freeze();
+        }
+
+        public void SetConfig(Action<PawsConfig> updateAction)
+        {
+            using var realm = Realm.GetInstance(_config);
+            realm.Write(() =>
+            {
+                // We must find the object again within this write transaction context.
+                var config = realm.Find<PawsConfig>(0);
+                if (config == null)
+                {
+                    config = realm.Add(new PawsConfig { Id = 0 });
+                }
+                updateAction(config);
+            });
+        }
     }
 }

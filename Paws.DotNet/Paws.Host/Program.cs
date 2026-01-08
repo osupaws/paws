@@ -13,10 +13,23 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://localhost:5088");
 
 // Register Paws services as singletons to persist for the app's lifetime.
-builder.Services.AddSingleton<LazerDbService>();
-builder.Services.AddSingleton<StableDbService>();
-builder.Services.AddSingleton<PawsDbService>(); // Our main DB
+builder.Services.AddSingleton<PawsDbService>(); // Our main DB must be registered first
 builder.Services.AddSingleton<FileStorageService>(); // Our file storage
+
+// Register StableDbService and LazerDbService with their dependencies
+builder.Services.AddSingleton<StableDbService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<StableDbService>>();
+    var pawsDbService = sp.GetRequiredService<PawsDbService>();
+    return new StableDbService(logger, pawsDbService);
+});
+builder.Services.AddSingleton<LazerDbService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<LazerDbService>>();
+    var pawsDbService = sp.GetRequiredService<PawsDbService>();
+    return new LazerDbService(logger, pawsDbService);
+});
+
 builder.Services.AddSingleton<PluginRepositoryService>(); // For the plugin store
 builder.Services.AddSingleton<PluginManager>();
 builder.Services.AddSingleton<IHostServices, HostServices>();
@@ -24,15 +37,25 @@ builder.Services.AddHttpClient(); // For PluginRepositoryService
 
 var app = builder.Build();
 
+// --- Asynchronous Service Initialization ---
+var pawsDb = app.Services.GetRequiredService<PawsDbService>();
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+try
+{
+    await pawsDb.InitializeAsync();
+}
+catch (Exception ex)
+{
+    logger.LogCritical(ex, "PawsDbService failed to initialize. The application will now exit.");
+    // Exit gracefully if the main DB can't be opened.
+    return;
+}
+
 // --- Plugin Loading ---
 var pluginManager = app.Services.GetRequiredService<PluginManager>();
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
-
-// HACK: For development, all discovered plugins are automatically approved.
 pluginManager.DiscoverAndLoadPlugins(Enumerable.Empty<string>()); // Step 1: Discover all plugins.
 var discoveredIds = pluginManager.GetDiscoveredPlugins().Select(p => p.Id).ToList();
 pluginManager.DiscoverAndLoadPlugins(discoveredIds); // Step 2: Load all discovered plugins.
-
 logger.LogInformation("Paws.Host C# Backend started successfully.");
 
 // --- API Endpoints ---

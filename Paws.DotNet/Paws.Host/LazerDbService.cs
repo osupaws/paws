@@ -11,11 +11,15 @@ namespace Paws.Host
     public class LazerDbService
     {
         private readonly ILogger<LazerDbService> _logger;
-        private string? _lazerDbPath;
+        private readonly PawsDbService _pawsDbService;
+        private string? _lazerDbPath; // This will now be primarily a cache/runtime value
 
-        public LazerDbService(ILogger<LazerDbService> logger)
+        public LazerDbService(ILogger<LazerDbService> logger, PawsDbService pawsDbService)
         {
             _logger = logger;
+            _pawsDbService = pawsDbService;
+            _lazerDbPath = _pawsDbService.GetConfig().LazerPath; // Load path from config on startup
+            _logger.LogInformation("Lazer path loaded from DB: {path}", _lazerDbPath ?? "Not set");
         }
 
         /// <summary>
@@ -33,6 +37,7 @@ namespace Paws.Host
 
             _logger.LogInformation("Lazer database path set to: {dbPath}", dbPath);
             _lazerDbPath = dbPath;
+            _pawsDbService.SetConfig(config => config.LazerPath = path); // Persist path to DB
         }
 
         /// <summary>
@@ -41,9 +46,18 @@ namespace Paws.Host
         /// <returns>A dynamic Realm instance or null if the path is not set/valid.</returns>
         public Realm? GetInstance()
         {
-            if (string.IsNullOrEmpty(_lazerDbPath))
+            // Always get the path from the persisted config
+            var currentLazerPath = _pawsDbService.GetConfig().LazerPath;
+            if (string.IsNullOrEmpty(currentLazerPath))
             {
-                _logger.LogWarning("Attempted to get lazer DB instance, but path is not set.");
+                _logger.LogWarning("Attempted to get lazer DB instance, but path is not set in config.");
+                return null;
+            }
+
+            var dbPath = Path.Combine(currentLazerPath, "client.realm");
+            if (!File.Exists(dbPath))
+            {
+                _logger.LogWarning("client.realm not found at specified lazer path: {path}", currentLazerPath);
                 return null;
             }
 
@@ -51,7 +65,7 @@ namespace Paws.Host
             {
                 // For a dynamic realm, you should NOT specify a schema.
                 // The IsDynamic flag tells Realm to discover the schema from the file.
-                var config = new RealmConfiguration(_lazerDbPath)
+                var config = new RealmConfiguration(dbPath)
                 {
                     IsDynamic = true,
                     IsReadOnly = true,
@@ -61,7 +75,7 @@ namespace Paws.Host
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to open lazer database at {path}", _lazerDbPath);
+                _logger.LogError(ex, "Failed to open lazer database at {path}", dbPath);
                 return null;
             }
         }
@@ -73,9 +87,11 @@ namespace Paws.Host
         /// <exception cref="LazerIsRunningException">Thrown if the osu!lazer process is detected.</exception>
         public Realm? GetWriteableInstance()
         {
-            if (string.IsNullOrEmpty(_lazerDbPath))
+            // Always get the path from the persisted config
+            var currentLazerPath = _pawsDbService.GetConfig().LazerPath;
+            if (string.IsNullOrEmpty(currentLazerPath))
             {
-                _logger.LogWarning("Attempted to get writeable lazer DB instance, but path is not set.");
+                _logger.LogWarning("Attempted to get writeable lazer DB instance, but path is not set in config.");
                 return null;
             }
 
@@ -86,11 +102,18 @@ namespace Paws.Host
                 throw new LazerIsRunningException();
             }
 
+            var dbPath = Path.Combine(currentLazerPath, "client.realm");
+            if (!File.Exists(dbPath))
+            {
+                _logger.LogWarning("client.realm not found at specified lazer path: {path}", currentLazerPath);
+                return null;
+            }
+
             try
             {
                 // The same configuration applies here for the writeable instance.
                 // No schema should be specified.
-                var config = new RealmConfiguration(_lazerDbPath)
+                var config = new RealmConfiguration(dbPath)
                 {
                     IsDynamic = true,
                     IsReadOnly = false,
@@ -100,7 +123,7 @@ namespace Paws.Host
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to open lazer database for writing at {path}", _lazerDbPath);
+                _logger.LogError(ex, "Failed to open lazer database for writing at {path}", dbPath);
                 return null;
             }
         }

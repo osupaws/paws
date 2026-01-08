@@ -1,13 +1,16 @@
 using OsuParsers.Database;
 using OsuParsers.Decoders;
-using System.Threading.Tasks; // Make sure this is present
+using System.Threading.Tasks;
+using Paws.Host.Data.Schemas;
+using Realms;
 
 namespace Paws.Host;
 
 public class StableDbService
 {
     private readonly ILogger<StableDbService> _logger;
-    private string? _stableRootPath;
+    private readonly PawsDbService _pawsDbService;
+    private string? _stableRootPath; // This will now be primarily a cache/runtime value
 
     private OsuDatabase? _cachedOsuDb;
     private ScoresDatabase? _cachedScoresDb;
@@ -15,9 +18,12 @@ public class StableDbService
     private DateTime _osuDbCacheTimestamp;
     private DateTime _scoresDbCacheTimestamp;
 
-    public StableDbService(ILogger<StableDbService> logger)
+    public StableDbService(ILogger<StableDbService> logger, PawsDbService pawsDbService)
     {
         _logger = logger;
+        _pawsDbService = pawsDbService;
+        _stableRootPath = _pawsDbService.GetConfig().StablePath; // Load path from config on startup
+        _logger.LogInformation("Stable path loaded from DB: {path}", _stableRootPath ?? "Not set");
     }
 
     public void SetStablePath(string path)
@@ -25,9 +31,12 @@ public class StableDbService
         _stableRootPath = path;
         _cachedOsuDb = null;
         _cachedScoresDb = null;
+
+        _pawsDbService.SetConfig(config => config.StablePath = path); // Persist path to DB
+        _logger.LogInformation("Stable path set and persisted: {path}", path);
     }
 
-    public string? GetStableRootPath() => _stableRootPath;
+    public string? GetStableRootPath() => _pawsDbService.GetConfig().StablePath; // Always get from config
     public async Task<OsuDatabase?> GetOsuDbAsync()
     {
         // Get the result from the helper

@@ -9,7 +9,8 @@ namespace Paws.Host
         public FileStorageService()
         {
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            _baseDir = Path.Combine(appData, "Paws", "files");
+            var pawsDir = Path.Combine(appData, "Paws");
+            _baseDir = Path.Combine(pawsDir, "files");
             Directory.CreateDirectory(_baseDir);
         }
 
