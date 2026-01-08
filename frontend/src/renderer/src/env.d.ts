@@ -1,31 +1,9 @@
-// frontend/src/renderer/src/env.d.ts
-
 /// <reference types="vite/client" />
 
-// --- START: ADDED CODE ---
-import { ElectronAPI } from "@preload/ipc/electron.ipc";
-import { SplashAPI } from "@preload/ipc/splash.ipc";
-import { StoreAPI } from "@preload/ipc/store.ipc";
-
-interface BackendAPI {
-  get: (endpoint: string) => Promise<any>;
-  post: (endpoint: string, body: any) => Promise<any>;
-}
+import { PawsAPI } from "@preload/api";
 
 declare global {
   interface Window {
-    api: {
-      electron: ElectronAPI;
-      store: StoreAPI;
-      splash: SplashAPI;
-      backend: BackendAPI;
-    };
+    api: PawsAPI;
   }
-}
-// --- END: ADDED CODE ---
-
-declare module "*.vue" {
-  import type { DefineComponent } from "vue";
-  const component: DefineComponent<{}, {}, any>;
-  export default component;
 }

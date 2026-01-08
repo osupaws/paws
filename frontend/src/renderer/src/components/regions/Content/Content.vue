@@ -1,5 +1,6 @@
 <!-- frontend/src/renderer/src/components/regions/Content/Content.vue -->
 <script setup lang="ts">
+import { getActiveThemeInfo, themeState } from "@renderer/state/theme.state";
 import { onMounted, onUnmounted, ref, watch } from "vue";
 
 defineProps<{
@@ -8,25 +9,52 @@ defineProps<{
 
 const iframeRef = ref<HTMLIFrameElement | null>(null);
 
+function postThemeToIframe(iframe: HTMLIFrameElement, isInitial = false): void {
+  // We must send a plain, clonable object, not a Vue Proxy object.
+  const plainThemeState = JSON.parse(JSON.stringify(themeState));
+
+  iframe.contentWindow?.postMessage(
+    {
+      channel: 'notice',
+      payload: {
+        type: 'theme-changed',
+        themeState: plainThemeState,
+        initial: isInitial
+      }
+    },
+    '*'
+  );
+}
+
 // --- Message Sending (Parent -> Iframe) ---
 watch(iframeRef, (iframe) => {
   if (iframe) {
-    iframe.addEventListener("load", () => {
-      // Once the iframe is loaded, send the initial mode.
-      // TODO: This should come from a shared state/store later.
+    iframe.addEventListener('load', () => {
+      // Once the iframe is loaded, send the initial mode and theme.
       iframe.contentWindow?.postMessage(
         {
-          channel: "notice",
+          channel: 'notice',
           payload: {
-            type: "mode-changed",
-            mode: "stable",
+            type: 'mode-changed',
+            mode: 'stable',
           },
         },
-        "*",
+        '*',
       );
+      postThemeToIframe(iframe, true); // Send initial theme without animation
     });
   }
 });
+
+// Watch for changes in the active theme and notify the iframe
+watch(
+  () => themeState.activeThemeId,
+  () => {
+    if (iframeRef.value) {
+      postThemeToIframe(iframeRef.value, false); // Send theme update with animation
+    }
+  },
+);
 
 // --- Message Receiving (Iframe -> Parent) ---
 async function handleMessageFromIframe(event: MessageEvent): Promise<void> {
@@ -36,7 +64,7 @@ async function handleMessageFromIframe(event: MessageEvent): Promise<void> {
   if (!channel || id === undefined) return;
 
   try {
-    let result;
+    let result: any;
     // Route the request from the iframe to the correct main process IPC handler
     // The `window.api` object is exposed by the preload script.
     if (channel === "post") {
@@ -90,6 +118,7 @@ onUnmounted(() => {
   height: 100%;
   background-color: var(--paws-color-bg-dark);
   border-radius: 16px 0 0 0;
+  overflow: hidden;
 }
 .content-iframe {
   width: 100%;

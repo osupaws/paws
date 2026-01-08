@@ -13,24 +13,24 @@ import { dirname, join, normalize } from "path";
 
 // Linter Fix: Add async return type Promise<any>
 async function forwardRequest(
-  endpoint: string,
-  options: RequestInit = {},
+	endpoint: string,
+	options: RequestInit = {}
 ): Promise<any> {
-  const baseUrl = "http://localhost:5088";
-  try {
-    const response = await net.fetch(`${baseUrl}${endpoint}`, options);
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || `API Error ${response.status}`);
-    }
-    const responseText = await response.text();
-    return responseText ? JSON.parse(responseText) : null;
-  } catch (error) {
-    if (error instanceof Error) {
-      log.error(`API request to ${endpoint} failed:`, error.message);
-    }
-    throw error;
-  }
+	const baseUrl = "http://localhost:5088";
+	try {
+		const response = await net.fetch(`${baseUrl}${endpoint}`, options);
+		if (!response.ok) {
+			const errorText = await response.text();
+			throw new Error(errorText || `API Error ${response.status}`);
+		}
+		const responseText = await response.text();
+		return responseText ? JSON.parse(responseText) : null;
+	} catch (error) {
+		if (error instanceof Error) {
+			log.error(`API request to ${endpoint} failed:`, error.message);
+		}
+		throw error;
+	}
 }
 
 // Linter Fix: Add Promise<any> return type
@@ -90,25 +90,71 @@ app.whenReady().then(async () => {
     log.error("Failed to build plugin folder map:", e);
   }
 
-  // Register `paws-app://` protocol to serve shared frontend files.
+  // --- PAWS App Protocol (System Files) ---
+  // This protocol serves non-plugin, built-in application assets.
   protocol.handle("paws-app", (request) => {
-    const url = new URL(request.url);
-    const assetPath = url.hostname; // The asset is the 'hostname' in a custom protocol
+    try {
+      const url = new URL(request.url);
+      const assetPath = `${url.hostname}${url.pathname}`;
 
-    const basePath = is.dev
-      ? join(__dirname, "..", "..", "public") // In dev, serve from the source 'public' folder
-      : join(__dirname, "..", "renderer"); // In prod, serve from the built 'renderer' folder
+      const publicRoot = is.dev
+        ? join(__dirname, "..", "..", "public") // Dev: serve from source public folder
+        : join(__dirname, "..", "renderer");     // Prod: serve from built renderer folder
 
-    const appFilePath = join(basePath, assetPath);
+      const absolutePath = join(publicRoot, assetPath);
 
-    /*
-        log.info(`[paws-app] Request for: ${assetPath}`);
-        log.info(`[paws-app] Base path: ${basePath}`);
-        log.info(`[paws-app] Resolved path: ${appFilePath}`);
-        log.info(`[paws-app] File exists: ${existsSync(appFilePath)}`);
-        */
+      // Explicitly check file existence
+      if (!existsSync(absolutePath)) {
+        log.warn(`File not found for paws-app: ${absolutePath}`);
+        return new Response('Not Found', { status: 404 });
+      }
 
-    return net.fetch(encodeURI(`file://${appFilePath.replace(/\\/g, "/")}`));
+      // SECURITY: Path Sandboxing
+      if (!normalize(absolutePath).startsWith(normalize(publicRoot))) {
+        log.error(
+          `Security violation: Attempt to access file outside of allowed directory for paws-app. Request: ${request.url}`,
+        );
+        return new Response('Forbidden', { status: 403 });
+      }
+      
+      return net.fetch(encodeURI(`file://${absolutePath.replace(/\\/g, "/")}`));
+    } catch (error) {
+      log.error(`Error in 'paws-app' protocol for ${request.url}: ${error}`);
+      return new Response('Internal Server Error', { status: 500 });
+    }
+  });
+
+  // --- PAWS Theme Protocol (User Themes) ---
+  // This protocol serves user-provided theme assets.
+  protocol.handle("paws-theme", (request) => {
+    try {
+      const url = new URL(request.url);
+      // For a URL like paws-theme://pink-light-theme/theme.css,
+      // hostname is 'pink-light-theme' and pathname is '/theme.css'
+      const themeRelativePath = `${url.hostname}${url.pathname}`; // This is like 'theme-folder/file.css'
+      
+      const themesRoot = join(app.getPath('userData'), 'themes');
+      const absolutePath = join(themesRoot, themeRelativePath);
+
+      // Explicitly check file existence
+      if (!existsSync(absolutePath)) {
+        log.warn(`File not found for paws-theme: ${absolutePath}`);
+        return new Response('Not Found', { status: 404 });
+      }
+
+      // SECURITY: Path Sandboxing
+      if (!normalize(absolutePath).startsWith(normalize(themesRoot))) {
+        log.error(
+          `Security violation: Attempt to access file outside of allowed directory for paws-theme. Request: ${request.url}`,
+        );
+        return new Response('Forbidden', { status: 403 });
+      }
+
+      return net.fetch(encodeURI(`file://${absolutePath.replace(/\\/g, "/")}`));
+    } catch (error) {
+      log.error(`Error in 'paws-theme' protocol for ${request.url}: ${error}`);
+      return new Response('Internal Server Error', { status: 500 });
+    }
   });
 
   // --- PAWS Plugin Protocol ---

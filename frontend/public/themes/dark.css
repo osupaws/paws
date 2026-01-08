@@ -1,3 +1,4 @@
+@layer base {
 :root {
 	--font-generic: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 
@@ -12,4 +13,5 @@
 	--paws-color-bg-darkest: #222222;
 	--paws-color-bg-dark: #262626;
 	--paws-color-bg-lighter: #383838;
+}
 }

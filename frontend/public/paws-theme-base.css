@@ -1,0 +1,6 @@
+@layer base, custom;
+
+/* This file provides the base for all themes, including smooth transitions. */
+.paws-theme-transitioning * {
+    transition: background-color 0.3s ease-in-out, color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+}

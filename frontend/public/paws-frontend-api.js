@@ -16,9 +16,56 @@
 
         // Handle one-way notices from the main renderer
         if (channel && channel === 'notice') {
-            noticeHandlers.forEach(handler => handler(event.data.payload));
-            return;
-        }
+            const notice = event.data.payload;
+            noticeHandlers.forEach(handler => handler(notice));
+
+            // Specifically handle theme changes to update stylesheets
+            if (notice.type === "theme-changed") {
+				const timestamp = new Date().getTime();
+				const baseLink = document.getElementById("paws-theme-base-link");
+				const customLink = document.getElementById("paws-theme-custom-link");
+
+				const themeState = notice.themeState;
+				if (!themeState) return;
+
+				const activeThemeInfo = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
+				if (!activeThemeInfo) return;
+
+				const isInitial = notice.initial || false;
+
+				const applyTheme = () => {
+					// We need to re-derive baseThemeInfo based on themeState for this iframe's context
+					// since the original notice.theme only contains the active theme's info.
+					const baseThemeInfo = themeState.availableThemes.find(t => t.id === `paws-${activeThemeInfo.base}`);
+
+					if (baseLink && baseThemeInfo) {
+						// Core themes are always served from the app's internal assets
+						baseLink.href = `paws-app://${baseThemeInfo.file}?v=${timestamp}`;
+					}
+
+					if (customLink && activeThemeInfo.isCustom) {
+						// Custom themes are served from the user's data directory
+						customLink.href = `paws-theme://${activeThemeInfo.file}?v=${timestamp}`; // Renamed protocol
+					} else {
+						// It's a core theme, so no custom styles are needed
+						customLink.href = "";
+					}
+				};
+
+				if (isInitial) {
+					// On initial load, just apply the theme instantly
+					applyTheme();
+				} else {
+					// On a theme switch, wrap the change in the animation class
+					document.body.classList.add("paws-theme-transitioning");
+					applyTheme();
+					setTimeout(() => {
+						document.body.classList.remove("paws-theme-transitioning");
+					}, 300);
+				}
+			}
+			return;
+		}
         
         // Handle promise-based request/response
         if (pendingPromises.has(id)) {
