@@ -15,6 +15,8 @@ builder.WebHost.UseUrls("http://localhost:5088");
 // Register Paws services as singletons to persist for the app's lifetime.
 builder.Services.AddSingleton<LazerDbService>();
 builder.Services.AddSingleton<StableDbService>();
+builder.Services.AddSingleton<PawsDbService>(); // Our main DB
+builder.Services.AddSingleton<FileStorageService>(); // Our file storage
 builder.Services.AddSingleton<PluginRepositoryService>(); // For the plugin store
 builder.Services.AddSingleton<PluginManager>();
 builder.Services.AddSingleton<IHostServices, HostServices>();
@@ -36,6 +38,26 @@ logger.LogInformation("Paws.Host C# Backend started successfully.");
 // --- API Endpoints ---
 
 var api = app.MapGroup("/api");
+
+// --- Theme Management Endpoints ---
+var themesApi = api.MapGroup("/themes");
+themesApi.MapGet("/", (PawsDbService db) => {
+    var themes = db.GetAllThemes();
+    // We must project the data into an anonymous object or a DTO.
+    // Directly returning RealmObjects can cause issues with serialization
+    // if the Realm context is disposed before the data is sent.
+    var result = themes.Select(t => new
+    {
+        t.Id,
+        t.Name,
+        t.Author,
+        t.Version,
+        t.Base,
+        File = t.File != null ? new { t.File.Hash, t.File.Size, t.File.Extension } : null
+    });
+    return Results.Ok(result);
+});
+
 
 // --- Path Management Endpoints ---
 var pathsApi = api.MapGroup("/paths");
