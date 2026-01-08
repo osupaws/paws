@@ -79,6 +79,13 @@ namespace Paws.Host
             return results;
         }
 
+        public FileEntry? GetFileEntry(string hash)
+        {
+            using var realm = Realm.GetInstance(_config);
+            var fileEntry = realm.Find<FileEntry>(hash);
+            return fileEntry?.Freeze();
+        }
+
         public PawsConfig GetConfig()
         {
             using var realm = Realm.GetInstance(_config);
@@ -93,27 +100,34 @@ namespace Paws.Host
             return config!.Freeze();
         }
 
-        public void SetConfig(Action<PawsConfig> updateAction)
-        {
-            using var realm = Realm.GetInstance(_config);
-            realm.Write(() =>
-            {
-                var config = realm.Find<PawsConfig>(0);
-                if (config == null)
+                public void SetConfig(Action<PawsConfig> updateAction)
+
                 {
-                    config = realm.Add(new PawsConfig { Id = 0 });
+
+                    using var realm = Realm.GetInstance(_config);
+
+                    realm.Write(() =>
+
+                    {
+
+                        var config = realm.Find<PawsConfig>(0);
+
+                        if (config == null)
+
+                        {
+
+                            config = realm.Add(new PawsConfig { Id = 0 });
+
+                        }
+
+                        updateAction(config);
+
+                    });
+
                 }
-                updateAction(config);
-            });
+
+            }
+
         }
+
         
-        public void Write(Action<Realm> writeAction)
-        {
-            using var realm = Realm.GetInstance(_config);
-            realm.Write(() =>
-            {
-                writeAction(realm);
-            });
-        }
-    }
-}

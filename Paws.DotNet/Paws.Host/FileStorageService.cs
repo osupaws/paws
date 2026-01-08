@@ -25,14 +25,12 @@ namespace Paws.Host
         }
         
         /// <summary>
-        /// Gets the full path to a file based on its hash in the hierarchical storage.
+        /// Gets the full path to a file based on its hash.
         /// </summary>
         private string GetHashedFilePath(string hash)
         {
-            if (hash.Length < 2) throw new ArgumentException("Hash too short for hierarchical storage.", nameof(hash));
-            var dir = Path.Combine(_baseDir, hash.Substring(0, 1), hash.Substring(0, 2));
-            Directory.CreateDirectory(dir);
-            return Path.Combine(dir, hash);
+            // All files will be stored directly in the 'files' directory.
+            return Path.Combine(_baseDir, hash);
         }
 
         /// <summary>

@@ -88,16 +88,31 @@ themesApi.MapPost("/import", async ([FromBody] ImportThemeRequest req, ThemeImpo
 
 
 // --- File Serving Endpoint ---
-api.MapGet("/files/{hash}", async (string hash, FileStorageService storage) =>
+api.MapGet("/files/{hash}", async (string hash, FileStorageService storage, PawsDbService db) =>
 {
-    var fileBytes = await storage.RetrieveFileAsync(hash);
-    if (fileBytes == null)
+    var fileData = await storage.RetrieveFileAsync(hash);
+    if (fileData == null)
     {
         return Results.NotFound();
     }
-    // For now, we assume all files are CSS. A more robust implementation
-    // would store and use the MIME type from the FileEntry in the database.
-    return Results.Bytes(fileBytes, "text/css");
+
+    var fileEntry = db.GetFileEntry(hash);
+    var contentType = "application/octet-stream"; // Тип по умолчанию
+    if (fileEntry != null)
+    {
+        contentType = fileEntry.Extension.ToLowerInvariant() switch
+        {
+            "css" => "text/css",
+            "png" => "image/png",
+            "jpg" => "image/jpeg",
+            "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "svg" => "image/svg+xml",
+            _ => contentType
+        };
+    }
+    
+    return Results.Bytes(fileData, contentType);
 });
 
 
