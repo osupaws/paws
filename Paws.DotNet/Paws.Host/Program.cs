@@ -30,6 +30,7 @@ builder.Services.AddSingleton<LazerDbService>(sp =>
     return new LazerDbService(logger, pawsDbService);
 });
 
+builder.Services.AddSingleton<ThemeImporterService>(); // For importing themes
 builder.Services.AddSingleton<PluginRepositoryService>(); // For the plugin store
 builder.Services.AddSingleton<PluginManager>();
 builder.Services.AddSingleton<IHostServices, HostServices>();
@@ -65,21 +66,26 @@ var api = app.MapGroup("/api");
 // --- Theme Management Endpoints ---
 var themesApi = api.MapGroup("/themes");
 themesApi.MapGet("/", (PawsDbService db) => {
-    var themes = db.GetAllThemes();
-    // We must project the data into an anonymous object or a DTO.
-    // Directly returning RealmObjects can cause issues with serialization
-    // if the Realm context is disposed before the data is sent.
-    var result = themes.Select(t => new
-    {
-        t.Id,
-        t.Name,
-        t.Author,
-        t.Version,
-        t.Base,
-        File = t.File != null ? new { t.File.Hash, t.File.Size, t.File.Extension } : null
-    });
-    return Results.Ok(result);
+    // The service now returns DTOs directly, so no projection is needed here.
+    return Results.Ok(db.GetAllThemes());
 });
+themesApi.MapPost("/import", async ([FromBody] ImportThemeRequest req, ThemeImporterService importer, ILogger<Program> endpointLogger) =>
+{
+    try
+    {
+        var importedTheme = await importer.ImportThemeAsync(req.FilePath);
+        return Results.Ok(importedTheme);
+    }
+    catch (Exception ex)
+    {
+        // Log the full exception details to the backend console
+        endpointLogger.LogError(ex, "An unhandled exception occurred during theme import for file: {FilePath}", req.FilePath);
+        
+        // Return a problem detail that includes the error message
+        return Results.Problem(ex.Message, statusCode: 500);
+    }
+});
+
 
 // --- File Serving Endpoint ---
 api.MapGet("/files/{hash}", async (string hash, FileStorageService storage) =>
@@ -148,4 +154,5 @@ app.Run();
 
 // --- API Request/Response Records ---
 public record SetPathRequest(string Path);
+public record ImportThemeRequest(string FilePath);
 public record ExecuteCommandRequest(string CommandName, object? Payload);

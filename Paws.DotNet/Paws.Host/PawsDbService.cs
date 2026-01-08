@@ -1,5 +1,8 @@
+using Paws.Host.Data;
 using Paws.Host.Data.Schemas;
 using Realms;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Paws.Host
 {
@@ -30,12 +33,10 @@ namespace Paws.Host
             };
         }
 
-        // This method can be used on startup to validate the config and ensure the DB can be opened.
         public async Task InitializeAsync()
         {
             try
             {
-                // Open and immediately close a Realm instance to check for errors.
                 using var realm = await Realm.GetInstanceAsync(_config);
                 _logger.LogInformation("Paws database configuration validated successfully at {path}", _config.DatabasePath);
             }
@@ -45,13 +46,37 @@ namespace Paws.Host
                 throw;
             }
         }
+
+        public RealmConfiguration GetRealmConfiguration() => _config;
         
-        public IQueryable<Theme> GetAllThemes()
+        public IEnumerable<ThemeDto> GetAllThemes()
         {
-            using var realm = Realm.GetInstance(_config);
-            // We must convert the live Realm results to a list in memory
-            // to be able to use it outside of the realm's thread/context.
-            return realm.All<Theme>().ToList().AsQueryable();
+            var results = new List<ThemeDto>();
+            
+            using (var realm = Realm.GetInstance(_config))
+            {
+                var allThemes = realm.All<Theme>();
+
+                foreach (var theme in allThemes)
+                {
+                    var fileDto = theme.File == null 
+                        ? null 
+                        : new FileEntryDto(theme.File.Hash, theme.File.Size, theme.File.Extension);
+                    
+                    var themeDto = new ThemeDto(
+                        theme.Id,
+                        theme.Name,
+                        theme.Base,
+                        theme.Author,
+                        theme.Version,
+                        fileDto
+                    );
+                    
+                    results.Add(themeDto);
+                }
+            }
+            
+            return results;
         }
 
         public PawsConfig GetConfig()
@@ -65,7 +90,6 @@ namespace Paws.Host
                     config = realm.Add(new PawsConfig { Id = 0 });
                 });
             }
-            // Freeze the object to make it thread-safe and returnable.
             return config!.Freeze();
         }
 
@@ -74,13 +98,21 @@ namespace Paws.Host
             using var realm = Realm.GetInstance(_config);
             realm.Write(() =>
             {
-                // We must find the object again within this write transaction context.
                 var config = realm.Find<PawsConfig>(0);
                 if (config == null)
                 {
                     config = realm.Add(new PawsConfig { Id = 0 });
                 }
                 updateAction(config);
+            });
+        }
+        
+        public void Write(Action<Realm> writeAction)
+        {
+            using var realm = Realm.GetInstance(_config);
+            realm.Write(() =>
+            {
+                writeAction(realm);
             });
         }
     }
