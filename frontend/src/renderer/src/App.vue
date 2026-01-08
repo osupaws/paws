@@ -28,12 +28,13 @@ watch(
 
     if (baseLink && baseThemeInfo) {
       // Core themes are always served from the app's internal assets
-      baseLink.href = `paws-app://${baseThemeInfo.file}`;
+      // The file path is hardcoded in `theme.state.ts`
+      baseLink.href = `paws-app://themes/${themeInfo.base}.css`;
     }
 
-    if (customLink && themeInfo.isCustom) {
-      // Custom themes are served from the user's data directory
-      customLink.href = `paws-theme://${themeInfo.file}`; // Renamed protocol
+    if (customLink && themeInfo.isCustom && themeInfo.file) {
+      // Custom themes are served by hash via the C# backend
+      customLink.href = `paws-theme://${themeInfo.file.hash}`;
     } else {
       // It's a core theme, so no custom styles are needed
       customLink.href = "";

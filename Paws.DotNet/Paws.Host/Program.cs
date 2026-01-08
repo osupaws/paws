@@ -81,6 +81,19 @@ themesApi.MapGet("/", (PawsDbService db) => {
     return Results.Ok(result);
 });
 
+// --- File Serving Endpoint ---
+api.MapGet("/files/{hash}", async (string hash, FileStorageService storage) =>
+{
+    var fileBytes = await storage.RetrieveFileAsync(hash);
+    if (fileBytes == null)
+    {
+        return Results.NotFound();
+    }
+    // For now, we assume all files are CSS. A more robust implementation
+    // would store and use the MIME type from the FileEntry in the database.
+    return Results.Bytes(fileBytes, "text/css");
+});
+
 
 // --- Path Management Endpoints ---
 var pathsApi = api.MapGroup("/paths");
