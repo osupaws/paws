@@ -1,8 +1,6 @@
-// frontend/src/renderer/src/env.d.ts
-
 /// <reference types="vite/client" />
 
-import { PawsAPI } from "@preload/api.d.ts";
+import { PawsAPI } from "@preload/api";
 
 declare global {
   interface Window {

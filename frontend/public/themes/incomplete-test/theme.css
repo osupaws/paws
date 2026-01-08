@@ -1,6 +1,0 @@
-@layer custom {
-  :root {
-    /* This theme only overrides one color */
-		--paws-color-bg-lighter: #ff0000;
-  }
-}

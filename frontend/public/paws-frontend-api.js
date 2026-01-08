@@ -34,13 +34,13 @@
 				const isInitial = notice.initial || false;
 
 				const applyTheme = () => {
-					const baseThemeId = activeThemeInfo.base; // 'dark' or 'light'
-					const fullBaseThemeId = `paws-${baseThemeId}`; // 'paws-dark' or 'paws-light'
-					const baseThemeInfoFound = themeState.availableThemes.find(t => t.id === fullBaseThemeId);
+					// We need to re-derive baseThemeInfo based on themeState for this iframe's context
+					// since the original notice.theme only contains the active theme's info.
+					const baseThemeInfo = themeState.availableThemes.find(t => t.id === `paws-${activeThemeInfo.base}`);
 
-					if (baseLink && baseThemeInfoFound) {
+					if (baseLink && baseThemeInfo) {
 						// Core themes are always served from the app's internal assets
-						baseLink.href = `paws-app://${baseThemeInfoFound.file}?v=${timestamp}`;
+						baseLink.href = `paws-app://${baseThemeInfo.file}?v=${timestamp}`;
 					}
 
 					if (customLink && activeThemeInfo.isCustom) {

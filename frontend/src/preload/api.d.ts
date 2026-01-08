@@ -1,5 +1,3 @@
-// frontend/src/preload/api.d.ts
-
 import { ElectronAPI } from "@preload/ipc/electron.ipc";
 import { SplashAPI } from "@preload/ipc/splash.ipc";
 import { StoreAPI } from "@preload/ipc/store.ipc";
