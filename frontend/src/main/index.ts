@@ -125,32 +125,23 @@ app.whenReady().then(async () => {
   });
 
   // --- PAWS Theme Protocol (User Themes) ---
-  // This protocol serves user-provided theme assets.
+  // This protocol serves user-provided theme assets by fetching them from the backend by hash.
   protocol.handle("paws-theme", (request) => {
     try {
       const url = new URL(request.url);
-      // For a URL like paws-theme://pink-light-theme/theme.css,
-      // hostname is 'pink-light-theme' and pathname is '/theme.css'
-      const themeRelativePath = `${url.hostname}${url.pathname}`; // This is like 'theme-folder/file.css'
+      const hash = url.hostname; // The hash is now the "host" of the URL
+
+      if (!hash) {
+        log.error("`paws-theme` protocol error: No hash provided in the URL.");
+        return new Response('Bad Request', { status: 400 });
+      }
+
+      const fileUrl = `http://localhost:5088/api/files/${hash}`;
+      log.info(`Forwarding paws-theme request to: ${fileUrl}`);
+
+      // Forward the request to the C# backend's file serving endpoint
+      return net.fetch(fileUrl);
       
-      const themesRoot = join(app.getPath('userData'), 'themes');
-      const absolutePath = join(themesRoot, themeRelativePath);
-
-      // Explicitly check file existence
-      if (!existsSync(absolutePath)) {
-        log.warn(`File not found for paws-theme: ${absolutePath}`);
-        return new Response('Not Found', { status: 404 });
-      }
-
-      // SECURITY: Path Sandboxing
-      if (!normalize(absolutePath).startsWith(normalize(themesRoot))) {
-        log.error(
-          `Security violation: Attempt to access file outside of allowed directory for paws-theme. Request: ${request.url}`,
-        );
-        return new Response('Forbidden', { status: 403 });
-      }
-
-      return net.fetch(encodeURI(`file://${absolutePath.replace(/\\/g, "/")}`));
     } catch (error) {
       log.error(`Error in 'paws-theme' protocol for ${request.url}: ${error}`);
       return new Response('Internal Server Error', { status: 500 });

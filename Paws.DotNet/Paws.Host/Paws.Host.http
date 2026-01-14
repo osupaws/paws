@@ -1,6 +1,13 @@
-@Paws.Host_HostAddress = http://localhost:5057
-
-GET {{Paws.Host_HostAddress}}/weatherforecast/
+### Get All Themes
+GET http://localhost:5088/api/themes
 Accept: application/json
+
+### Import a new theme
+POST http://localhost:5088/api/themes/import
+Content-Type: application/json
+
+{
+  "filePath": "C:\\theme\\my-test-theme.pawstheme"
+}
 
 ###

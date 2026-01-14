@@ -39,15 +39,15 @@
 					const baseThemeInfo = themeState.availableThemes.find(t => t.id === `paws-${activeThemeInfo.base}`);
 
 					if (baseLink && baseThemeInfo) {
-						// Core themes are always served from the app's internal assets
-						baseLink.href = `paws-app://${baseThemeInfo.file}?v=${timestamp}`;
+						// Строим путь к базовой теме, используя ее 'base' свойство ('dark' или 'light')
+						baseLink.href = `paws-app://themes/${activeThemeInfo.base}.css?v=${timestamp}`;
 					}
 
-					if (customLink && activeThemeInfo.isCustom) {
-						// Custom themes are served from the user's data directory
-						customLink.href = `paws-theme://${activeThemeInfo.file}?v=${timestamp}`; // Renamed protocol
+					if (customLink && activeThemeInfo.isCustom && activeThemeInfo.file) {
+						// Кастомные темы используют хеш из объекта file
+						customLink.href = `paws-theme://${activeThemeInfo.file.hash}?v=${timestamp}`;
 					} else {
-						// It's a core theme, so no custom styles are needed
+						// Это базовая тема, кастомные стили не нужны
 						customLink.href = "";
 					}
 				};

@@ -13,8 +13,24 @@ var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls("http://localhost:5088");
 
 // Register Paws services as singletons to persist for the app's lifetime.
-builder.Services.AddSingleton<LazerDbService>();
-builder.Services.AddSingleton<StableDbService>();
+builder.Services.AddSingleton<PawsDbService>(); // Our main DB must be registered first
+builder.Services.AddSingleton<FileStorageService>(); // Our file storage
+
+// Register StableDbService and LazerDbService with their dependencies
+builder.Services.AddSingleton<StableDbService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<StableDbService>>();
+    var pawsDbService = sp.GetRequiredService<PawsDbService>();
+    return new StableDbService(logger, pawsDbService);
+});
+builder.Services.AddSingleton<LazerDbService>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<LazerDbService>>();
+    var pawsDbService = sp.GetRequiredService<PawsDbService>();
+    return new LazerDbService(logger, pawsDbService);
+});
+
+builder.Services.AddSingleton<ThemeImporterService>(); // For importing themes
 builder.Services.AddSingleton<PluginRepositoryService>(); // For the plugin store
 builder.Services.AddSingleton<PluginManager>();
 builder.Services.AddSingleton<IHostServices, HostServices>();
@@ -22,20 +38,83 @@ builder.Services.AddHttpClient(); // For PluginRepositoryService
 
 var app = builder.Build();
 
+// --- Asynchronous Service Initialization ---
+var pawsDb = app.Services.GetRequiredService<PawsDbService>();
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+try
+{
+    await pawsDb.InitializeAsync();
+}
+catch (Exception ex)
+{
+    logger.LogCritical(ex, "PawsDbService failed to initialize. The application will now exit.");
+    // Exit gracefully if the main DB can't be opened.
+    return;
+}
+
 // --- Plugin Loading ---
 var pluginManager = app.Services.GetRequiredService<PluginManager>();
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
-
-// HACK: For development, all discovered plugins are automatically approved.
 pluginManager.DiscoverAndLoadPlugins(Enumerable.Empty<string>()); // Step 1: Discover all plugins.
 var discoveredIds = pluginManager.GetDiscoveredPlugins().Select(p => p.Id).ToList();
 pluginManager.DiscoverAndLoadPlugins(discoveredIds); // Step 2: Load all discovered plugins.
-
 logger.LogInformation("Paws.Host C# Backend started successfully.");
 
 // --- API Endpoints ---
 
 var api = app.MapGroup("/api");
+
+// --- Theme Management Endpoints ---
+var themesApi = api.MapGroup("/themes");
+themesApi.MapGet("/", (PawsDbService db) => {
+    // The service now returns DTOs directly, so no projection is needed here.
+    return Results.Ok(db.GetAllThemes());
+});
+themesApi.MapPost("/import", async ([FromBody] ImportThemeRequest req, ThemeImporterService importer, ILogger<Program> endpointLogger) =>
+{
+    try
+    {
+        var importedTheme = await importer.ImportThemeAsync(req.FilePath);
+        return Results.Ok(importedTheme);
+    }
+    catch (Exception ex)
+    {
+        // Log the full exception details to the backend console
+        endpointLogger.LogError(ex, "An unhandled exception occurred during theme import for file: {FilePath}", req.FilePath);
+        
+        // Return a problem detail that includes the error message
+        return Results.Problem(ex.Message, statusCode: 500);
+    }
+});
+
+
+// --- File Serving Endpoint ---
+api.MapGet("/files/{hash}", async (string hash, FileStorageService storage, PawsDbService db) =>
+{
+    var fileData = await storage.RetrieveFileAsync(hash);
+    if (fileData == null)
+    {
+        return Results.NotFound();
+    }
+
+    var fileEntry = db.GetFileEntry(hash);
+    var contentType = "application/octet-stream"; // Тип по умолчанию
+    if (fileEntry != null)
+    {
+        contentType = fileEntry.Extension.ToLowerInvariant() switch
+        {
+            "css" => "text/css",
+            "png" => "image/png",
+            "jpg" => "image/jpeg",
+            "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "svg" => "image/svg+xml",
+            _ => contentType
+        };
+    }
+    
+    return Results.Bytes(fileData, contentType);
+});
+
 
 // --- Path Management Endpoints ---
 var pathsApi = api.MapGroup("/paths");
@@ -90,4 +169,5 @@ app.Run();
 
 // --- API Request/Response Records ---
 public record SetPathRequest(string Path);
+public record ImportThemeRequest(string FilePath);
 public record ExecuteCommandRequest(string CommandName, object? Payload);

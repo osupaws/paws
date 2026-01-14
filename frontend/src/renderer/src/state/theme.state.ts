@@ -4,8 +4,14 @@ import { reactive } from "vue";
 export interface Theme {
   id: string; // The globally unique ID, e.g., 'paws-dark' or 'my-custom-theme'
   name: string;
-  base: string; // The "local" ID of the base theme, e.g., 'dark' or 'light'
-  file: string;
+  author?: string;
+  version?: string;
+  base: string;
+  file: {
+    hash: string;
+    size: number;
+    extension: string;
+  } | null;
   isCustom: boolean;
 }
 
@@ -15,14 +21,14 @@ const coreThemes: Theme[] = [
     id: "paws-dark",
     name: "Dark (Default)",
     base: "dark",
-    file: "themes/dark.css",
+    file: null, // Core themes don't have a hash-based file
     isCustom: false,
   },
   {
     id: "paws-light",
     name: "Light",
     base: "light",
-    file: "themes/light.css",
+    file: null, // Core themes don't have a hash-based file
     isCustom: false,
   },
 ];
