@@ -1,13 +1,23 @@
 <!-- frontend/src/renderer/src/components/regions/Content/Content.vue -->
 <script setup lang="ts">
-import { getActiveThemeInfo, themeState } from "@renderer/state/theme.state";
-import { onMounted, onUnmounted, ref, watch } from "vue";
-
-defineProps<{
-  pluginSrc: string;
-}>();
+import { fetchPlugins, pluginState } from "@renderer/state/plugin.state";
+import { themeState } from "@renderer/state/theme.state";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 
 const iframeRef = ref<HTMLIFrameElement | null>(null);
+
+// Calculate the iframe source based on the active plugin
+const pluginSrc = computed(() => {
+  if (!pluginState.activePluginId) return "";
+  const plugin = pluginState.loadedPlugins.find(
+    (p) => p.id === pluginState.activePluginId,
+  );
+  if (!plugin || !plugin.ui) return "";
+
+  // Custom protocol paws-plugin://[plugin-id]/[entry]?pluginId=[id]
+  // Plugins often expect their own ID in the query params to work with the API
+  return `paws-plugin://${plugin.id}/${plugin.ui.entry}?pluginId=${plugin.id}`;
+});
 
 function postThemeToIframe(iframe: HTMLIFrameElement, isInitial = false): void {
   // We must send a plain, clonable object, not a Vue Proxy object.
@@ -15,31 +25,31 @@ function postThemeToIframe(iframe: HTMLIFrameElement, isInitial = false): void {
 
   iframe.contentWindow?.postMessage(
     {
-      channel: 'notice',
+      channel: "notice",
       payload: {
-        type: 'theme-changed',
+        type: "theme-changed",
         themeState: plainThemeState,
-        initial: isInitial
-      }
+        initial: isInitial,
+      },
     },
-    '*'
+    "*",
   );
 }
 
 // --- Message Sending (Parent -> Iframe) ---
 watch(iframeRef, (iframe) => {
   if (iframe) {
-    iframe.addEventListener('load', () => {
+    iframe.addEventListener("load", () => {
       // Once the iframe is loaded, send the initial mode and theme.
       iframe.contentWindow?.postMessage(
         {
-          channel: 'notice',
+          channel: "notice",
           payload: {
-            type: 'mode-changed',
-            mode: 'stable',
+            type: "mode-changed",
+            mode: "stable",
           },
         },
-        '*',
+        "*",
       );
       postThemeToIframe(iframe, true); // Send initial theme without animation
     });
@@ -88,8 +98,10 @@ async function handleMessageFromIframe(event: MessageEvent): Promise<void> {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   window.addEventListener("message", handleMessageFromIframe);
+  // Fetch plugins on mount
+  await fetchPlugins();
 });
 
 onUnmounted(() => {
@@ -98,7 +110,6 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <!-- Linter Fix: The parent now handles the class and styling -->
   <div class="content-container">
     <iframe
       v-if="pluginSrc"
@@ -111,13 +122,12 @@ onUnmounted(() => {
   </div>
 </template>
 
-<!-- Linter Fix: Added scoped styles directly, as the module file was unused -->
 <style scoped>
 .content-container {
   flex: 1;
   height: 100%;
   background-color: var(--paws-color-bg-dark);
-  border-radius: 16px 0 0 0;
+  border-radius: 16px 16px 0 0;
   overflow: hidden;
 }
 .content-iframe {
@@ -126,6 +136,10 @@ onUnmounted(() => {
   border: none;
 }
 .content-placeholder {
-  margin: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--paws-color-text-secondary);
 }
 </style>

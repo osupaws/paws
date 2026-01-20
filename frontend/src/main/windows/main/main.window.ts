@@ -1,20 +1,18 @@
 import { is } from "@electron-toolkit/utils";
 import { appState } from "@main/state/app.state";
-import { store } from "@main/store/store";
 import { BrowserWindow, shell } from "electron";
 import { join } from "path";
 
 export const createMainWindow = (
   splashWindow: BrowserWindow,
 ): BrowserWindow => {
-  const isCompact: boolean = store.get("isCompact");
-
   const mainWindow = new BrowserWindow({
-    width: isCompact ? 672 : 1200,
+    width: 640,
     height: 800,
     resizable: false,
     frame: false,
     show: false,
+    titleBarStyle: "hidden",
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       sandbox: false,
