@@ -22,7 +22,7 @@ const closeWindow = (): void => {
         @click="toggleMenu"
       >
         <!-- Временно просто текст -->
-        <span>user</span>
+        <span>menu</span>
       </button>
     </div>
 

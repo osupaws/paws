@@ -5,8 +5,8 @@
     left: 0;
     width: 100%;
     height: calc(100% - 48px);
-    pointer-events: none;
-    /* Allow clicking through when closed or outside the menu */
+    pointer-events: auto;
+    /* Теперь обертка ловит клики (для закрытия по фону) */
     z-index: 2000;
     overflow: hidden;
 }
@@ -15,70 +15,59 @@
     position: absolute;
     top: 12px;
     left: 12px;
-    width: 240px;
+    width: 212px;
     background-color: var(--paws-color-bg-darkest);
     border-radius: 12px;
     padding: 12px;
     pointer-events: auto;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+    /* Убрали тень по запросу */
+    box-shadow: none;
+    /* Тонкая обводка 0.5px */
+    border: 0.5px solid #939393;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    transform: translateY(-20px);
-    opacity: 0;
+    gap: 8px; /* Расстояние между блоками */
     transition: all 0.2s ease;
 }
 
-.menu.open {
-    transform: translateY(0);
+/* Классы для анимации Transition (делаем глобальными, чтобы Vue их нашел по имени "menu") */
+:global(.menu-enter-active),
+:global(.menu-leave-active) {
+    transition: all 0.2s ease;
+}
+
+:global(.menu-enter-from),
+:global(.menu-leave-to) {
+    opacity: 0;
+    transform: translateY(-20px);
+}
+
+:global(.menu-enter-to),
+:global(.menu-leave-from) {
     opacity: 1;
+    transform: translateY(0);
 }
 
 .section {
     display: flex;
     flex-direction: column;
-    gap: 4px;
 }
 
-.launchButton {
-    background-color: var(--paws-color-accent-primary);
-    color: var(--paws-color-text-on-accent);
-    border: none;
-    border-radius: 8px;
-    padding: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    text-align: left;
+.paddedSection {
+    padding: 0 8px; /* 12px menu padding + 8px = 20px total offset */
 }
 
 .pluginList {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-}
-
-.pluginItem {
-    background: none;
-    border: none;
-    color: var(--paws-color-text-primary);
-    padding: 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    text-align: left;
-    transition: background-color 0.2s;
-}
-
-.pluginItem:hover,
-.pluginItem.active {
-    background-color: var(--paws-color-bg-lighter);
+    gap: 4px; /* Расстояние между каждым плагином */
 }
 
 .footer {
-    margin-top: auto;
     display: flex;
     justify-content: space-between;
-    padding-top: 12px;
-    border-top: 1px solid var(--paws-color-bg-lighter);
+    padding: 0 8px; /* 12px menu padding + 8px = 20px total offset */
+    /* Убрали border-top и padding-top, так как теперь работаем через gap: 8px в .menu */
 }
 
 .footerButton {

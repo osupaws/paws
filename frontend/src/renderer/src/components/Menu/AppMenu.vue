@@ -21,55 +21,54 @@ const toggleTheme = (): void => {
 </script>
 
 <template>
-  <div
-    v-if="menuState.isOpen"
-    :class="styles.menuWrapper"
-    @click.self="closeMenu"
-  >
-    <div :class="[styles.menu, { [styles.open]: menuState.isOpen }]">
-      <!-- Section: Client Launcher Placeholder -->
-      <div :class="styles.section">
-        <button :class="styles.launchButton">launch akatsuki</button>
-      </div>
+  <Transition name="menu">
+    <div
+      v-if="menuState.isOpen"
+      :class="styles.menuWrapper"
+      @click.self="closeMenu"
+    >
+      <div :class="styles.menu">
+        <!-- Section: Client Launcher Placeholder -->
+        <div :class="[styles.section, styles.paddedSection]">
+          <PawsMenuButton>launch akatsuki</PawsMenuButton>
+        </div>
 
-      <!-- Section: Plugins -->
-      <div :class="styles.section">
-        <div :class="styles.pluginList">
-          <button
-            v-for="plugin in pluginState.loadedPlugins"
-            :key="plugin.id"
-            :class="[
-              styles.pluginItem,
-              { [styles.active]: pluginState.activePluginId === plugin.id },
-            ]"
-            @click="selectPlugin(plugin.id)"
-          >
-            {{ plugin.name }}
-          </button>
+        <!-- Section: Plugins -->
+        <div :class="styles.section">
+          <div :class="styles.pluginList">
+            <PawsMenuButton
+              v-for="plugin in pluginState.loadedPlugins"
+              :key="plugin.id"
+              :active="pluginState.activePluginId === plugin.id"
+              @click="selectPlugin(plugin.id)"
+            >
+              {{ plugin.name }}
+            </PawsMenuButton>
 
-          <div
-            v-if="pluginState.loadedPlugins.length === 0"
-            :class="styles.pluginItem"
-          >
-            No plugins loaded
+            <div
+              v-if="pluginState.loadedPlugins.length === 0"
+              :class="styles.pluginItem"
+            >
+              No plugins loaded
+            </div>
           </div>
         </div>
-      </div>
 
-      <!-- Footer: Settings, Theme, etc. -->
-      <div :class="styles.footer">
-        <button :class="styles.footerButton" title="Plugins Management">
-          📦
-        </button>
-        <button
-          :class="styles.footerButton"
-          title="Switch Theme"
-          @click="toggleTheme"
-        >
-          🌗
-        </button>
-        <button :class="styles.footerButton" title="Settings">⚙️</button>
+        <!-- Footer: Settings, Theme, etc. -->
+        <div :class="styles.footer">
+          <button :class="styles.footerButton" title="Plugins Management">
+            📦
+          </button>
+          <button
+            :class="styles.footerButton"
+            title="Switch Theme"
+            @click="toggleTheme"
+          >
+            🌗
+          </button>
+          <button :class="styles.footerButton" title="Settings">⚙️</button>
+        </div>
       </div>
     </div>
-  </div>
+  </Transition>
 </template>
