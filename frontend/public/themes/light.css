@@ -1,17 +1,43 @@
 @layer base {
-:root {
-	--font-generic: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+	:root {
+		/* Colors */
+		--paws-color-accent-primary: #ffa4c1;
+		--paws-color-accent-subprimary: #ffe5ed;
+		--paws-color-accent-secondary: #73092a;
+		--paws-color-accent-primary-hover: #e790ac;
+		--paws-color-accent-subprimary-hover: #ecccd6;
 
-	--paws-color-accent-primary: #8a2be2; /* Example: Brighter purple */
-	--paws-color-accent-secondary: #c080ff; /* Example: Lighter purple */
-	--paws-color-text-primary: #1b1b1b; /* Dark text for light background */
-	--paws-color-text-secondary: #4a4a4a;
-	--paws-color-text-on-accent: #ffffff;
-	--paws-color-success: #4caf50;
-	--paws-color-warning: #ffc107;
-	--paws-color-error: #f44336;
-	--paws-color-bg-darkest: #f8f8f8; /* Very light background */
-	--paws-color-bg-dark: #efefef;
-	--paws-color-bg-lighter: #e0e0e0;
-}
+		--paws-color-inactive-primary: #cecece;
+		--paws-color-inactive-sub: #e4e4e4;
+		--paws-color-inactive-secondary: #474747;
+		--paws-color-inactive-primary-hover: #c4c4c4;
+		--paws-color-inactive-sub-hover: #dddddd;
+
+		--paws-color-text-primary: #252525;
+		--paws-color-text-secondary: #a1a1a1;
+
+		--paws-color-bg-primary: #fafafa;
+		--paws-color-bg-subprimary: #eaeaea;
+		--paws-color-bg-secondary: #f4f4f4;
+		--paws-color-bg-translucent: #00000005;
+		--paws-color-bg-tertiary: #efefef;
+		--paws-color-bg-titlebar: #eeeeee;
+
+		--paws-color-interactive-primary: #e4e4e4;
+		--paws-color-interactive-secondary: #fafafa;
+
+		--paws-color-success: #6ec071;
+		--paws-color-warning: #fcd45e;
+		--paws-color-error: #f56f66;
+
+		/* Rounding */
+		--paws-rounding-normal: 8px;
+		--paws-rounding-normal-inner: 6px;
+		--paws-rounding-medium: 12px;
+		--paws-rounding-medium-inner: 9px;
+		--paws-rounding-big: 16px;
+
+		/* Fonts */
+		--paws-font-primary: "Wix Madefor Display", system-ui, sans-serif;
+	}
 }

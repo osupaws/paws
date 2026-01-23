@@ -7,9 +7,9 @@ import styles from "./Layout.module.css";
 </script>
 
 <template>
-  <div :class="styles.layout">
-    <Titlebar />
-    <AppMenu />
-    <Content />
-  </div>
+	<div :class="styles.layout">
+		<Titlebar />
+		<AppMenu />
+		<Content />
+	</div>
 </template>

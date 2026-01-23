@@ -122,7 +122,7 @@ export default tseslint.config(
 				"error",
 				{},
 				{
-					usePrettierrc: false
+					usePrettierrc: true
 				}
 			]
 		}

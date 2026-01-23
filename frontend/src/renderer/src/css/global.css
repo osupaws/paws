@@ -11,10 +11,10 @@ body,
 
 #app,
 button {
-	font-family: "Wix Madefor Display", var(--font-generic), sans-serif;
+	font-family: var(--paws-font-primary);
 	color: var(--paws-color-text-primary);
 }
 
 body {
-	background-color: var(--paws-color-bg-lighter);
+	background-color: var(--paws-color-bg-titlebar);
 }

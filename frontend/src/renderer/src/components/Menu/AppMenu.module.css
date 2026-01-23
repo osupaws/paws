@@ -1,90 +1,90 @@
 .menuWrapper {
-    position: absolute;
-    top: 48px;
-    /* Height of the titlebar */
-    left: 0;
-    width: 100%;
-    height: calc(100% - 48px);
-    pointer-events: auto;
-    /* Теперь обертка ловит клики (для закрытия по фону) */
-    z-index: 2000;
-    overflow: hidden;
+	position: absolute;
+	top: 48px;
+	/* Height of the titlebar */
+	left: 0;
+	width: 100%;
+	height: calc(100% - 48px);
+	pointer-events: auto;
+	/* Теперь обертка ловит клики (для закрытия по фону) */
+	z-index: 2000;
+	overflow: hidden;
 }
 
 .menu {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    width: 212px;
-    background-color: var(--paws-color-bg-darkest);
-    border-radius: 12px;
-    padding: 12px;
-    pointer-events: auto;
-    /* Убрали тень по запросу */
-    box-shadow: none;
-    /* Тонкая обводка 0.5px */
-    border: 0.5px solid #939393;
-    display: flex;
-    flex-direction: column;
-    gap: 8px; /* Расстояние между блоками */
-    transition: all 0.2s ease;
+	position: absolute;
+	top: 12px;
+	left: 12px;
+	width: 212px;
+	background-color: var(--paws-color-bg-secondary);
+	border-radius: var(--paws-rounding-medium, 12px);
+	padding: 12px;
+	pointer-events: auto;
+	/* Убрали тень по запросу */
+	box-shadow: none;
+	/* Тонкая обводка 0.5px */
+	border: 0.5px solid #939393;
+	display: flex;
+	flex-direction: column;
+	gap: 8px; /* Расстояние между блоками */
+	transition: all 0.2s ease;
 }
 
 /* Классы для анимации Transition (делаем глобальными, чтобы Vue их нашел по имени "menu") */
 :global(.menu-enter-active),
 :global(.menu-leave-active) {
-    transition: all 0.2s ease;
+	transition: all 0.2s ease;
 }
 
 :global(.menu-enter-from),
 :global(.menu-leave-to) {
-    opacity: 0;
-    transform: translateY(-20px);
+	opacity: 0;
+	transform: translateY(-20px);
 }
 
 :global(.menu-enter-to),
 :global(.menu-leave-from) {
-    opacity: 1;
-    transform: translateY(0);
+	opacity: 1;
+	transform: translateY(0);
 }
 
 .section {
-    display: flex;
-    flex-direction: column;
+	display: flex;
+	flex-direction: column;
 }
 
 .paddedSection {
-    padding: 0 8px; /* 12px menu padding + 8px = 20px total offset */
+	padding: 0 8px; /* 12px menu padding + 8px = 20px total offset */
 }
 
 .pluginList {
-    display: flex;
-    flex-direction: column;
-    gap: 4px; /* Расстояние между каждым плагином */
+	display: flex;
+	flex-direction: column;
+	gap: 4px; /* Расстояние между каждым плагином */
 }
 
 .footer {
-    display: flex;
-    justify-content: space-between;
-    padding: 0 8px; /* 12px menu padding + 8px = 20px total offset */
-    /* Убрали border-top и padding-top, так как теперь работаем через gap: 8px в .menu */
+	display: flex;
+	justify-content: space-between;
+	padding: 0 8px; /* 12px menu padding + 8px = 20px total offset */
+	/* Убрали border-top и padding-top, так как теперь работаем через gap: 8px в .menu */
 }
 
 .footerButton {
-    background: none;
-    border: none;
-    color: var(--paws-color-text-secondary);
-    padding: 8px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
+	background: none;
+	border: none;
+	color: var(--paws-color-text-secondary);
+	padding: 8px;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 18px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s;
 }
 
 .footerButton:hover {
-    background-color: var(--paws-color-bg-lighter);
-    color: var(--paws-color-text-primary);
+	background-color: var(--paws-color-interactive-primary);
+	color: var(--paws-color-text-primary);
 }
