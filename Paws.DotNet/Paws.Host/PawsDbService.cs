@@ -14,7 +14,7 @@ namespace Paws.Host
         public PawsDbService(ILogger<PawsDbService> logger)
         {
             _logger = logger;
-            
+
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
             var pawsDir = Path.Combine(appData, "Paws");
             Directory.CreateDirectory(pawsDir);
@@ -29,7 +29,7 @@ namespace Paws.Host
                     typeof(Theme),
                     typeof(PawsConfig)
                 },
-                SchemaVersion = 1,
+                SchemaVersion = 2,
             };
         }
 
@@ -48,21 +48,21 @@ namespace Paws.Host
         }
 
         public RealmConfiguration GetRealmConfiguration() => _config;
-        
+
         public IEnumerable<ThemeDto> GetAllThemes()
         {
             var results = new List<ThemeDto>();
-            
+
             using (var realm = Realm.GetInstance(_config))
             {
                 var allThemes = realm.All<Theme>();
 
                 foreach (var theme in allThemes)
                 {
-                    var fileDto = theme.File == null 
-                        ? null 
+                    var fileDto = theme.File == null
+                        ? null
                         : new FileEntryDto(theme.File.Hash, theme.File.Size, theme.File.Extension);
-                    
+
                     var themeDto = new ThemeDto(
                         theme.Id,
                         theme.Name,
@@ -71,11 +71,11 @@ namespace Paws.Host
                         theme.Version,
                         fileDto
                     );
-                    
+
                     results.Add(themeDto);
                 }
             }
-            
+
             return results;
         }
 
@@ -130,4 +130,3 @@ namespace Paws.Host
 
         }
 
-        

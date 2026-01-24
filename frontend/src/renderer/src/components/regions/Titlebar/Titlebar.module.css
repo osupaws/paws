@@ -27,9 +27,9 @@
 
 .logo {
 	font-family: "Fredoka", sans-serif;
-	font-weight: 700;
-	font-size: 24px;
-	color: var(--paws-color-text-primary);
+	font-weight: 500;
+	font-size: 32px;
+	color: var(--paws-color-inactive-secondary);
 }
 
 .userButton {

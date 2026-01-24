@@ -14,5 +14,8 @@ namespace Paws.Host.Data.Schemas
 
         [MapTo("lazerPath")]
         public string? LazerPath { get; set; }
+
+        [MapTo("isLegacyMode")]
+        public bool IsLegacyMode { get; set; } = false;
     }
 }

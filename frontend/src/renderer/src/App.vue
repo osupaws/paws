@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import Layout from "@renderer/components/Layout/Layout.vue";
+import { setLegacyMode, settingsState } from "@renderer/state/settings.state";
 import { getActiveThemeInfo, themeState } from "@renderer/state/theme.state";
 import { computed, watch } from "vue";
 // This watcher handles all side effects of a theme change.
@@ -57,6 +58,10 @@ const nextThemeName = computed(() => {
 	const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
 	return themeState.availableThemes[nextIndex]?.name || "Unknown";
 });
+
+const toggleLegacyMode = (): void => {
+	setLegacyMode(!settingsState.isLegacyMode);
+};
 </script>
 
 <template>
@@ -67,6 +72,12 @@ const nextThemeName = computed(() => {
 			@click="toggleTheme"
 		>
 			Switch to {{ nextThemeName }}
+		</button>
+		<button
+			style="position: absolute; bottom: 10px; left: 10px; padding: 10px; z-index: 1000"
+			@click="toggleLegacyMode"
+		>
+			Current Mode: {{ settingsState.isLegacyMode ? "Stable (Legacy)" : "Lazer" }}
 		</button>
 	</div>
 </template>
