@@ -1,10 +1,10 @@
-import { Theme } from '@renderer/state/theme.state';
-import { ipcRenderer } from 'electron';
+import type { Theme } from "@common/types";
+import { ipcRenderer } from "electron";
 
 export const themesIpc = {
-  getCustom: (): Promise<Theme[]> => {
-    return ipcRenderer.invoke('themes:get-custom');
-  }
+	getCustom: (): Promise<Theme[]> => {
+		return ipcRenderer.invoke("themes:get-custom");
+	}
 };
 
 export type ThemesAPI = typeof themesIpc;

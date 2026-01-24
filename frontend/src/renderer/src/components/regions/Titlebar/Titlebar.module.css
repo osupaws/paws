@@ -1,0 +1,79 @@
+.titlebar {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1fr;
+	align-items: center;
+	height: 48px;
+	padding: 0 6px; /* 6px от левого и правого краев */
+	background-color: transparent;
+	user-select: none;
+	-webkit-app-region: drag;
+	/* Вся область перетаскиваемая */
+}
+
+.left,
+.center,
+.right {
+	display: flex;
+	align-items: center;
+}
+
+.center {
+	justify-content: center;
+}
+
+.right {
+	justify-content: flex-end;
+}
+
+.logo {
+	font-family: "Fredoka", sans-serif;
+	font-weight: 700;
+	font-size: 24px;
+	color: var(--paws-color-text-primary);
+}
+
+.userButton {
+	-webkit-app-region: no-drag;
+	/* Кнопка кликабельная */
+	background-color: var(--paws-color-interactive-primary);
+	border: none;
+	border-radius: var(--paws-rounding-normal, 10px);
+	height: 36px; /* Фиксированная высота */
+	padding: 0 12px;
+	display: flex;
+	align-items: center;
+	color: var(--paws-color-text-secondary);
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.userButton:hover,
+.userButton.active {
+	background-color: var(--paws-color-accent-primary);
+	color: var(--paws-color-accent-secondary);
+}
+
+.windowButton {
+	-webkit-app-region: no-drag;
+	/* Кнопка кликабельная */
+	background: none;
+	border: none;
+	color: var(--paws-color-text-secondary);
+	font-size: 16px;
+	width: 32px;
+	height: 32px;
+	line-height: 32px;
+	text-align: center;
+	border-radius: 6px;
+	cursor: pointer;
+	transition: background-color 0.2s;
+}
+
+.windowButton:hover {
+	background-color: var(--paws-color-interactive-primary);
+}
+
+.closeButton:hover {
+	background-color: #e81123;
+	color: white;
+}

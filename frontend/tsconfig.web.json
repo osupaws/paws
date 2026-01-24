@@ -7,7 +7,8 @@
     "src/renderer/src/**/*",
     "src/renderer/src/**/*.vue",
     "src/renderer/splash/*.ts",
-    "src/renderer/*.d.ts"
+    "src/renderer/*.d.ts",
+    "src/common/**/*"
   ],
   "compilerOptions": {
     "composite": true,
@@ -18,6 +19,9 @@
       ],
       "@ui-kit/*": [
         "ui-kit/src/components/*"
+      ],
+      "@common/*": [
+        "src/common/*"
       ]
     }
   }

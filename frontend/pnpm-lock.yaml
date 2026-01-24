@@ -14,6 +14,9 @@ importers:
       '@electron-toolkit/utils':
         specifier: ^4.0.0
         version: 4.0.0(electron@35.7.4)
+      '@osupaws/paws-ui':
+        specifier: 0.2.1-alpha
+        version: 0.2.1-alpha(vue@3.5.18(typescript@5.9.2))
       electron-log:
         specifier: ^5.4.1
         version: 5.4.2
@@ -502,6 +505,12 @@ packages:
     resolution: {integrity: sha512-mJd2Z5TjYWq/ttPLLGqArdtnC74J6bOzg4rMDnN+p1xTacZ2yPRCk2y0oSWQtygLR9YVQXgOcONrwtnk3JupxQ==}
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
     deprecated: This functionality has been moved to @npmcli/fs
+
+  '@osupaws/paws-ui@0.2.1-alpha':
+    resolution: {integrity: sha512-uDAfX/f3+xoT9mTUzFIN8QaaFoHGE6HzmWNIOLr9d0SLbcVnegyYbYBl6uYWyDhTCXUI/UbquNJGuvvE3tgM8Q==, tarball: https://npm.pkg.github.com/download/@osupaws/paws-ui/0.2.1-alpha/339ff7b6d6a8eda4bfe23d9c74fb98a92bbb1826}
+    engines: {node: '>=22.17'}
+    peerDependencies:
+      vue: ^3.5.18
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -3333,6 +3342,10 @@ snapshots:
     dependencies:
       mkdirp: 1.0.4
       rimraf: 3.0.2
+
+  '@osupaws/paws-ui@0.2.1-alpha(vue@3.5.18(typescript@5.9.2))':
+    dependencies:
+      vue: 3.5.18(typescript@5.9.2)
 
   '@pkgjs/parseargs@0.11.0':
     optional: true

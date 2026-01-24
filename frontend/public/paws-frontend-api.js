@@ -1,26 +1,26 @@
 // Paws Frontend API Bridge v2.0
 // Simplifies communication between a plugin/settings frame and the main process via the renderer.
 
-(function() {
-    let messageId = 0;
-    const pendingPromises = new Map();
-    const noticeHandlers = new Set();
+(function () {
+	let messageId = 0;
+	const pendingPromises = new Map();
+	const noticeHandlers = new Set();
 
-    // Listen for responses from the main renderer process
-    window.addEventListener('message', (event) => {
-        // Basic security: In a real sandboxed environment, we'd check the origin.
-        // For file:// and custom protocols, this is tricky, so we trust the parent.
-        if (event.source !== window.parent) return;
+	// Listen for responses from the main renderer process
+	window.addEventListener("message", event => {
+		// Basic security: In a real sandboxed environment, we'd check the origin.
+		// For file:// and custom protocols, this is tricky, so we trust the parent.
+		if (event.source !== window.parent) return;
 
-        const { id, result, error, channel } = event.data;
+		const { id, result, error, channel } = event.data;
 
-        // Handle one-way notices from the main renderer
-        if (channel && channel === 'notice') {
-            const notice = event.data.payload;
-            noticeHandlers.forEach(handler => handler(notice));
+		// Handle one-way notices from the main renderer
+		if (channel && channel === "notice") {
+			const notice = event.data.payload;
+			noticeHandlers.forEach(handler => handler(notice));
 
-            // Specifically handle theme changes to update stylesheets
-            if (notice.type === "theme-changed") {
+			// Specifically handle theme changes to update stylesheets
+			if (notice.type === "theme-changed") {
 				const timestamp = new Date().getTime();
 				const baseLink = document.getElementById("paws-theme-base-link");
 				const customLink = document.getElementById("paws-theme-custom-link");
@@ -28,7 +28,9 @@
 				const themeState = notice.themeState;
 				if (!themeState) return;
 
-				const activeThemeInfo = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
+				const activeThemeInfo = themeState.availableThemes.find(
+					t => t.id === themeState.activeThemeId
+				);
 				if (!activeThemeInfo) return;
 
 				const isInitial = notice.initial || false;
@@ -36,7 +38,9 @@
 				const applyTheme = () => {
 					// We need to re-derive baseThemeInfo based on themeState for this iframe's context
 					// since the original notice.theme only contains the active theme's info.
-					const baseThemeInfo = themeState.availableThemes.find(t => t.id === `paws-${activeThemeInfo.base}`);
+					const baseThemeInfo = themeState.availableThemes.find(
+						t => t.id === `paws-${activeThemeInfo.base}`
+					);
 
 					if (baseLink && baseThemeInfo) {
 						// Строим путь к базовой теме, используя ее 'base' свойство ('dark' или 'light')
@@ -66,54 +70,54 @@
 			}
 			return;
 		}
-        
-        // Handle promise-based request/response
-        if (pendingPromises.has(id)) {
-            const { resolve, reject } = pendingPromises.get(id);
-            if (error) {
-                reject(new Error(error));
-            } else {
-                resolve(result);
-            }
-            pendingPromises.delete(id);
-        }
-    });
 
-    /**
-     * Sends a request to the main process and returns a promise that resolves with the result.
-     * @param {string} channel - The IPC channel to call.
-     * @param {*} [payload] - The data to send with the request.
-     * @returns {Promise<any>} A promise that resolves with the result from the main process.
-     */
-    function request(channel, payload) {
-        return new Promise((resolve, reject) => {
-            const currentId = messageId++;
-            pendingPromises.set(currentId, { resolve, reject });
+		// Handle promise-based request/response
+		if (pendingPromises.has(id)) {
+			const { resolve, reject } = pendingPromises.get(id);
+			if (error) {
+				reject(new Error(error));
+			} else {
+				resolve(result);
+			}
+			pendingPromises.delete(id);
+		}
+	});
 
-            window.parent.postMessage({ channel, id: currentId, payload }, '*');
-        });
-    }
+	/**
+	 * Sends a request to the main process and returns a promise that resolves with the result.
+	 * @param {string} channel - The IPC channel to call.
+	 * @param {*} [payload] - The data to send with the request.
+	 * @returns {Promise<any>} A promise that resolves with the result from the main process.
+	 */
+	function request(channel, payload) {
+		return new Promise((resolve, reject) => {
+			const currentId = messageId++;
+			pendingPromises.set(currentId, { resolve, reject });
 
-    // Expose the simplified API on the window object
-    window.paws = {
-        get: (endpoint) => request('get', endpoint),
-        post: (endpoint, body) => request('post', { endpoint, body }),
-        getStoreValue: (key) => request('get-store-value', key),
-        setStoreValue: (key, value) => request('set-store-value', { key, value }),
-        showOpenDialog: (options) => request('show-open-dialog', options),
-        restartApp: () => request('restart-app'),
-        resizeWindow: (isCompact) => request('resize-window', { isCompact }),
+			window.parent.postMessage({ channel, id: currentId, payload }, "*");
+		});
+	}
 
-        // Method for the plugin UI to listen for notices from the main app
-        onNotice: (callback) => {
-            noticeHandlers.add(callback);
-            // Return a function to unsubscribe
-            return () => noticeHandlers.delete(callback);
-        },
+	// Expose the simplified API on the window object
+	window.paws = {
+		get: endpoint => request("get", endpoint),
+		post: (endpoint, body) => request("post", { endpoint, body }),
+		getStoreValue: key => request("get-store-value", key),
+		setStoreValue: (key, value) => request("set-store-value", { key, value }),
+		showOpenDialog: options => request("show-open-dialog", options),
+		restartApp: () => request("restart-app"),
+		resizeWindow: isCompact => request("resize-window", { isCompact }),
 
-        // For sending a one-way notification to the parent renderer
-        notifyParent: (noticeType, payload) => {
-            window.parent.postMessage({ channel: 'notice-from-frame', noticeType, payload }, '*');
-        }
-    };
+		// Method for the plugin UI to listen for notices from the main app
+		onNotice: callback => {
+			noticeHandlers.add(callback);
+			// Return a function to unsubscribe
+			return () => noticeHandlers.delete(callback);
+		},
+
+		// For sending a one-way notification to the parent renderer
+		notifyParent: (noticeType, payload) => {
+			window.parent.postMessage({ channel: "notice-from-frame", noticeType, payload }, "*");
+		}
+	};
 })();
