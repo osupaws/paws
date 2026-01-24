@@ -73,3 +73,47 @@ export function getActiveThemeInfo(): Theme {
 	// Fallback to paws-dark if activeThemeId is somehow still invalid
 	return theme || coreThemes[0];
 }
+
+/**
+ * Imports a theme from a .pawstheme (zip) file.
+ */
+export async function importTheme(filePath: string): Promise<void> {
+	try {
+		console.log(`[ThemeState] Importing theme from: ${filePath}`);
+		// Post to backend
+		const newTheme = await window.api.backend.post("/api/themes/import", { filePath });
+
+		// Add isCustom flag since backend DTO might not have it strictly typed for frontend logic yet,
+		// or we just ensure it aligns with our frontend type.
+		const themeWithFlag = { ...newTheme, isCustom: true };
+
+		// Check if already exists
+		const existingIndex = themeState.availableThemes.findIndex(t => t.id === themeWithFlag.id);
+		if (existingIndex !== -1) {
+			themeState.availableThemes[existingIndex] = themeWithFlag;
+		} else {
+			themeState.availableThemes.push(themeWithFlag);
+		}
+
+		console.log(`[ThemeState] Theme imported successfully: ${themeWithFlag.name}`);
+
+		// Optionally switch to it immediately? Let's ask user.
+		// For now, just adding it is enough.
+	} catch (error) {
+		console.error("[ThemeState] Failed to import theme:", error);
+		throw error;
+	}
+}
+
+/**
+ * Sets the active theme and persists it.
+ */
+export function setActiveTheme(themeId: string): void {
+	if (themeState.availableThemes.some(t => t.id === themeId)) {
+		themeState.activeThemeId = themeId;
+		window.api.store.set("activeThemeId", themeId);
+		console.log(`[ThemeState] Theme changed to: ${themeId}`);
+	} else {
+		console.warn(`[ThemeState] Attempted to set invalid theme ID: ${themeId}`);
+	}
+}

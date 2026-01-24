@@ -1,9 +1,37 @@
 <!-- frontend/src/renderer/src/components/regions/Content/Content.vue -->
 <script setup lang="ts">
+import { openSettings } from "@renderer/state/modal.state";
 import { fetchPlugins, pluginState } from "@renderer/state/plugin.state";
-import { settingsState } from "@renderer/state/settings.state";
-import { themeState } from "@renderer/state/theme.state";
+import { setLegacyMode, settingsState } from "@renderer/state/settings.state";
+import { importTheme, themeState } from "@renderer/state/theme.state";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+
+const handleImportTheme = async (): Promise<void> => {
+	const result = await window.api.electron.showOpenDialog({
+		properties: ["openFile"],
+		filters: [{ name: "Paws Theme", extensions: ["pawstheme", "zip"] }]
+	});
+
+	if (!result.canceled && result.filePaths.length > 0) {
+		await importTheme(result.filePaths[0]);
+	}
+};
+
+const toggleTheme = (): void => {
+	const currentIndex = themeState.availableThemes.findIndex(t => t.id === themeState.activeThemeId);
+	const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
+	themeState.activeThemeId = themeState.availableThemes[nextIndex].id;
+	// Persist changes
+	window.api.store.set("activeThemeId", themeState.activeThemeId);
+};
+
+const toggleMode = (): void => {
+	setLegacyMode(!settingsState.isLegacyMode);
+};
+
+const handleOpenSettings = (): void => {
+	openSettings();
+};
 
 const iframeRef = ref<HTMLIFrameElement | null>(null);
 
@@ -133,7 +161,22 @@ onUnmounted(() => {
 			sandbox="allow-scripts allow-forms"
 			class="content-iframe"
 		></iframe>
-		<div v-else class="content-placeholder">Select a plugin</div>
+		<div v-else class="content-placeholder">
+			<div class="placeholder-wrapper">
+				<span>Select a plugin</span>
+				<span>(or press the buttons below)</span>
+				<div class="actions-column">
+					<button class="action-btn" @click="handleImportTheme">Import Theme (Debug)</button>
+					<button class="action-btn" @click="toggleTheme">
+						Switch Theme: {{ themeState.activeThemeId }}
+					</button>
+					<button class="action-btn" @click="toggleMode">
+						Switch Mode: {{ settingsState.isLegacyMode ? "Stable" : "Lazer" }}
+					</button>
+					<button class="action-btn" @click="handleOpenSettings">Open Settings</button>
+				</div>
+			</div>
+		</div>
 	</div>
 </template>
 
@@ -151,10 +194,35 @@ onUnmounted(() => {
 	border: none;
 }
 .content-placeholder {
-	display: flex;
-	align-items: center;
-	justify-content: center;
 	height: 100%;
 	color: var(--paws-color-text-secondary);
+}
+.placeholder-wrapper {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+}
+.actions-column {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	width: 250px;
+}
+.action-btn {
+	padding: 10px 16px;
+	background: var(--paws-color-bg-secondary);
+	border: 1px solid var(--paws-color-bg-tertiary);
+	color: var(--paws-color-text-primary);
+	border-radius: 6px;
+	cursor: pointer;
+	text-align: center;
+	transition: background 0.2s;
+}
+.action-btn:hover {
+	background: var(--paws-color-interactive-hover);
 }
 </style>

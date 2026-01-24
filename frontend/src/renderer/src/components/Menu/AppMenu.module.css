@@ -1,10 +1,10 @@
 .menuWrapper {
 	position: absolute;
-	top: 48px;
-	/* Height of the titlebar */
+	top: 0;
+	/* Height of the titlebar is handled by parent container flex layout */
 	left: 0;
 	width: 100%;
-	height: calc(100% - 48px);
+	height: 100%;
 	pointer-events: auto;
 	/* Теперь обертка ловит клики (для закрытия по фону) */
 	z-index: 2000;
@@ -71,9 +71,9 @@
 }
 
 .footerButton {
-	background: none;
-	border: none;
-	color: var(--paws-color-text-secondary);
+	background-color: var(--paws-color-bg-secondary);
+	border: 1px solid var(--paws-color-bg-tertiary);
+	color: var(--paws-color-text-primary);
 	padding: 8px;
 	border-radius: 6px;
 	cursor: pointer;
@@ -85,6 +85,5 @@
 }
 
 .footerButton:hover {
-	background-color: var(--paws-color-interactive-primary);
-	color: var(--paws-color-text-primary);
+	background-color: var(--paws-color-interactive-hover);
 }

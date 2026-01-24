@@ -1,12 +1,33 @@
 <script setup lang="ts">
-import { FolderIcon, PawsCard, PawsHeading, PawsInput } from "@osupaws/paws-ui";
+import {
+	FolderIcon,
+	PawsCard,
+	PawsCheckbox,
+	PawsDropdown,
+	PawsHeading,
+	PawsInput
+} from "@osupaws/paws-ui";
 import { closeSettings, modalState } from "@renderer/state/modal.state";
-import { setLazerPath, setStablePath, settingsState } from "@renderer/state/settings.state";
-import { ref, watch } from "vue";
+import {
+	setLazerPath,
+	setLegacyMode,
+	setStablePath,
+	settingsState
+} from "@renderer/state/settings.state";
+import { setActiveTheme, themeState } from "@renderer/state/theme.state";
+import { computed, ref, watch } from "vue";
 
 // Local state for inputs to prevent saving on every keystroke
 const localLazerPath = ref(settingsState.lazerPath || "");
 const localStablePath = ref(settingsState.stablePath || "");
+
+// Build options for theme dropdown
+const themeOptions = computed(() =>
+	themeState.availableThemes.map(t => ({
+		label: t.name,
+		value: t.id
+	}))
+);
 
 // Sync local state when settings are loaded/changed elsewhere
 watch(
@@ -53,6 +74,10 @@ const openFolderDialog = async (type: "stable" | "lazer"): Promise<void> => {
 			handleLazerSave();
 		}
 	}
+};
+
+const handleThemeChange = (newThemeId: string): void => {
+	setActiveTheme(newThemeId);
 };
 </script>
 
@@ -106,13 +131,29 @@ const openFolderDialog = async (type: "stable" | "lazer"): Promise<void> => {
 										</template>
 									</PawsInput>
 								</div>
+
+								<div class="input-row">
+									<PawsDropdown
+										:options="themeOptions.map(o => o.value)"
+										:model-value="themeState.activeThemeId"
+										placeholder="select theme"
+										@update:model-value="handleThemeChange"
+									/>
+								</div>
 							</PawsCard>
 
 							<PawsCard class="settings-card">
 								<template #heading>
 									<PawsHeading size="sm" font-weight="600" align="left">advanced</PawsHeading>
 								</template>
-								<!-- Advanced settings content will go here -->
+
+								<div class="input-row">
+									<PawsCheckbox
+										label="legacy mode"
+										:model-value="settingsState.isLegacyMode"
+										@update:model-value="setLegacyMode"
+									/>
+								</div>
 							</PawsCard>
 						</div>
 					</div>
@@ -208,10 +249,10 @@ const openFolderDialog = async (type: "stable" | "lazer"): Promise<void> => {
 }
 
 .cards-container {
-	margin-top: 12px;
+	margin-top: 10px;
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
+	gap: 10px;
 	flex: 1;
 	overflow-y: auto;
 }
@@ -222,10 +263,19 @@ const openFolderDialog = async (type: "stable" | "lazer"): Promise<void> => {
 }
 
 .input-row {
-	margin-bottom: 16px;
+	margin-bottom: 10px;
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .input-row:last-child {
 	margin-bottom: 0;
+}
+
+/* Force dropdown to full width */
+.input-row :deep(.paws-dropdown) {
+	width: 100%;
 }
 </style>
