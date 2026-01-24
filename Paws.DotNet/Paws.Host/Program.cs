@@ -80,7 +80,7 @@ themesApi.MapPost("/import", async ([FromBody] ImportThemeRequest req, ThemeImpo
     {
         // Log the full exception details to the backend console
         endpointLogger.LogError(ex, "An unhandled exception occurred during theme import for file: {FilePath}", req.FilePath);
-        
+
         // Return a problem detail that includes the error message
         return Results.Problem(ex.Message, statusCode: 500);
     }
@@ -111,7 +111,7 @@ api.MapGet("/files/{hash}", async (string hash, FileStorageService storage, Paws
             _ => contentType
         };
     }
-    
+
     return Results.Bytes(fileData, contentType);
 });
 
@@ -124,6 +124,22 @@ pathsApi.MapPost("/stable", ([FromBody] SetPathRequest req, StableDbService serv
 });
 pathsApi.MapPost("/lazer", ([FromBody] SetPathRequest req, LazerDbService service) => {
     service.SetLazerPath(req.Path);
+    return Results.Ok();
+});
+
+
+// --- Configuration Management Endpoints ---
+var configApi = api.MapGroup("/config");
+configApi.MapGet("", (PawsDbService db) => {
+    var config = db.GetConfig();
+    return Results.Ok(new { config.IsLegacyMode, config.StablePath, config.LazerPath });
+});
+configApi.MapPost("", ([FromBody] UpdateConfigRequest req, PawsDbService db) => {
+    db.SetConfig(config => {
+        if (req.IsLegacyMode.HasValue) config.IsLegacyMode = req.IsLegacyMode.Value;
+        if (req.StablePath != null) config.StablePath = req.StablePath;
+        if (req.LazerPath != null) config.LazerPath = req.LazerPath;
+    });
     return Results.Ok();
 });
 
@@ -147,7 +163,7 @@ pluginsApi.MapPost("/execute/{pluginId}", async (Guid pluginId, [FromBody] Execu
     var plugin = pm.GetPluginById(pluginId);
     if (plugin == null) return Results.NotFound($"Plugin with ID {pluginId} not found or not loaded.");
     if (string.IsNullOrEmpty(req.CommandName)) return Results.BadRequest("CommandName is required.");
-    
+
     try
     {
         var result = await plugin.ExecuteCommandAsync(req.CommandName, req.Payload);
@@ -171,3 +187,4 @@ app.Run();
 public record SetPathRequest(string Path);
 public record ImportThemeRequest(string FilePath);
 public record ExecuteCommandRequest(string CommandName, object? Payload);
+public record UpdateConfigRequest(bool? IsLegacyMode, string? StablePath, string? LazerPath);

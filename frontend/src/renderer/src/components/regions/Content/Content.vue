@@ -1,6 +1,7 @@
 <!-- frontend/src/renderer/src/components/regions/Content/Content.vue -->
 <script setup lang="ts">
 import { fetchPlugins, pluginState } from "@renderer/state/plugin.state";
+import { settingsState } from "@renderer/state/settings.state";
 import { themeState } from "@renderer/state/theme.state";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 
@@ -44,7 +45,7 @@ watch(iframeRef, iframe => {
 					channel: "notice",
 					payload: {
 						type: "mode-changed",
-						mode: "stable"
+						mode: settingsState.isLegacyMode ? "stable" : "lazer"
 					}
 				},
 				"*"
@@ -60,6 +61,25 @@ watch(
 	() => {
 		if (iframeRef.value) {
 			postThemeToIframe(iframeRef.value, false); // Send theme update with animation
+		}
+	}
+);
+
+// Watch for changes in Legacy Mode and notify the iframe
+watch(
+	() => settingsState.isLegacyMode,
+	isLegacy => {
+		if (iframeRef.value) {
+			iframeRef.value.contentWindow?.postMessage(
+				{
+					channel: "notice",
+					payload: {
+						type: "mode-changed",
+						mode: isLegacy ? "stable" : "lazer"
+					}
+				},
+				"*"
+			);
 		}
 	}
 );
