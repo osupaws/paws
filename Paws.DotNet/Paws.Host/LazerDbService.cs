@@ -18,7 +18,7 @@ namespace Paws.Host
         {
             _logger = logger;
             _pawsDbService = pawsDbService;
-            _lazerDbPath = _pawsDbService.GetConfig().LazerPath; // Load path from config on startup
+            _lazerDbPath = _pawsDbService.GetSetting("core.paths.lazer")?.Value; // Load path from config on startup
             _logger.LogInformation("Lazer path loaded from DB: {path}", _lazerDbPath ?? "Not set");
         }
 
@@ -37,7 +37,7 @@ namespace Paws.Host
 
             _logger.LogInformation("Lazer database path set to: {dbPath}", dbPath);
             _lazerDbPath = dbPath;
-            _pawsDbService.SetConfig(config => config.LazerPath = path); // Persist path to DB
+            _pawsDbService.SetSetting("core.paths.lazer", path); // Persist path to DB
         }
 
         /// <summary>
@@ -47,7 +47,7 @@ namespace Paws.Host
         public Realm? GetInstance()
         {
             // Always get the path from the persisted config
-            var currentLazerPath = _pawsDbService.GetConfig().LazerPath;
+            var currentLazerPath = _pawsDbService.GetSetting("core.paths.lazer")?.Value;
             if (string.IsNullOrEmpty(currentLazerPath))
             {
                 _logger.LogWarning("Attempted to get lazer DB instance, but path is not set in config.");
@@ -88,7 +88,7 @@ namespace Paws.Host
         public Realm? GetWriteableInstance()
         {
             // Always get the path from the persisted config
-            var currentLazerPath = _pawsDbService.GetConfig().LazerPath;
+            var currentLazerPath = _pawsDbService.GetSetting("core.paths.lazer")?.Value;
             if (string.IsNullOrEmpty(currentLazerPath))
             {
                 _logger.LogWarning("Attempted to get writeable lazer DB instance, but path is not set in config.");

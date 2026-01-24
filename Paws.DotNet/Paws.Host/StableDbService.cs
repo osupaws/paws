@@ -22,7 +22,7 @@ public class StableDbService
     {
         _logger = logger;
         _pawsDbService = pawsDbService;
-        _stableRootPath = _pawsDbService.GetConfig().StablePath; // Load path from config on startup
+        _stableRootPath = _pawsDbService.GetSetting("core.paths.stable")?.Value; // Load path from KV settings on startup
         _logger.LogInformation("Stable path loaded from DB: {path}", _stableRootPath ?? "Not set");
     }
 
@@ -32,11 +32,11 @@ public class StableDbService
         _cachedOsuDb = null;
         _cachedScoresDb = null;
 
-        _pawsDbService.SetConfig(config => config.StablePath = path); // Persist path to DB
+        _pawsDbService.SetSetting("core.paths.stable", path); // Persist path to KV settings
         _logger.LogInformation("Stable path set and persisted: {path}", path);
     }
 
-    public string? GetStableRootPath() => _pawsDbService.GetConfig().StablePath; // Always get from config
+    public string? GetStableRootPath() => _pawsDbService.GetSetting("core.paths.stable")?.Value; // Always get from KV settings
     public async Task<OsuDatabase?> GetOsuDbAsync()
     {
         // Get the result from the helper
@@ -90,9 +90,9 @@ public class StableDbService
         }
 
         _logger.LogInformation("Parsing {FileName} from disk...", fileName);
-        
+
         var parsedData = await parseFunc(dbPath);
-        
+
         _logger.LogInformation("Finished parsing {FileName}.", fileName);
 
         // Return a tuple with the new data and timestamp

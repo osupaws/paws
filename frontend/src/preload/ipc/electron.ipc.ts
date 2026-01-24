@@ -2,7 +2,8 @@ import { ipcRenderer } from "electron";
 
 export const electronIpc = {
 	closeApp: () => ipcRenderer.send("electron.close-app"),
-	minimizeWindow: () => ipcRenderer.send("electron.minimize-window")
+	minimizeWindow: () => ipcRenderer.send("electron.minimize-window"),
+	showOpenDialog: (options: any) => ipcRenderer.invoke("electron.show-open-dialog", options)
 };
 
 export type ElectronAPI = typeof electronIpc;

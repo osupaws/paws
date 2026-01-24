@@ -1,5 +1,59 @@
 <script setup lang="ts">
+import { FolderIcon, PawsCard, PawsHeading, PawsInput } from "@osupaws/paws-ui";
 import { closeSettings, modalState } from "@renderer/state/modal.state";
+import { setLazerPath, setStablePath, settingsState } from "@renderer/state/settings.state";
+import { ref, watch } from "vue";
+
+// Local state for inputs to prevent saving on every keystroke
+const localLazerPath = ref(settingsState.lazerPath || "");
+const localStablePath = ref(settingsState.stablePath || "");
+
+// Sync local state when settings are loaded/changed elsewhere
+watch(
+	() => settingsState.lazerPath,
+	val => (localLazerPath.value = val || "")
+);
+watch(
+	() => settingsState.stablePath,
+	val => (localStablePath.value = val || "")
+);
+
+const handleLazerSave = (): void => {
+	if (localLazerPath.value !== settingsState.lazerPath) {
+		setLazerPath(localLazerPath.value);
+	}
+};
+
+const handleStableSave = (): void => {
+	if (localStablePath.value !== settingsState.stablePath) {
+		setStablePath(localStablePath.value);
+	}
+};
+
+const handleLazerCancel = (): void => {
+	localLazerPath.value = settingsState.lazerPath || "";
+};
+
+const handleStableCancel = (): void => {
+	localStablePath.value = settingsState.stablePath || "";
+};
+
+const openFolderDialog = async (type: "stable" | "lazer"): Promise<void> => {
+	const result = await window.api.electron.showOpenDialog({
+		properties: ["openDirectory"]
+	});
+
+	if (!result.canceled && result.filePaths.length > 0) {
+		const path = result.filePaths[0];
+		if (type === "stable") {
+			localStablePath.value = path;
+			handleStableSave();
+		} else {
+			localLazerPath.value = path;
+			handleLazerSave();
+		}
+	}
+};
 </script>
 
 <template>
@@ -7,15 +61,60 @@ import { closeSettings, modalState } from "@renderer/state/modal.state";
 		<div v-if="modalState.isSettingsOpen" class="settings-overlay" @click.self="closeSettings">
 			<Transition name="scale">
 				<div v-if="modalState.isSettingsOpen" class="settings-modal">
-					<div class="settings-header">
-						<h2 class="settings-title">Settings</h2>
-						<button class="close-button" @click="closeSettings">✕</button>
-					</div>
-					<div class="settings-content">
-						<!-- Content will go here in the next steps -->
-						<p style="color: var(--paws-color-text-secondary)">
-							Settings options will appear here.
-						</p>
+					<div class="settings-container">
+						<div class="header-row">
+							<PawsHeading size="lg" font-weight="600" align="left">settings</PawsHeading>
+							<button class="close-button" @click="closeSettings">✕</button>
+						</div>
+
+						<div class="cards-container">
+							<PawsCard class="settings-card">
+								<template #heading>
+									<PawsHeading size="sm" font-weight="600" align="left">general</PawsHeading>
+								</template>
+
+								<div class="input-row">
+									<PawsInput
+										v-model="localLazerPath"
+										button-text="lazer path"
+										placeholder="select osu!lazer directory"
+										:is-icon-clickable="true"
+										@focusout="handleLazerSave"
+										@keydown.enter="handleLazerSave"
+										@keydown.esc="handleLazerCancel"
+										@icon-click="openFolderDialog('lazer')"
+									>
+										<template #icon>
+											<FolderIcon />
+										</template>
+									</PawsInput>
+								</div>
+
+								<div class="input-row">
+									<PawsInput
+										v-model="localStablePath"
+										button-text="stable path"
+										placeholder="select osu!stable directory"
+										:is-icon-clickable="true"
+										@focusout="handleStableSave"
+										@keydown.enter="handleStableSave"
+										@keydown.esc="handleStableCancel"
+										@icon-click="openFolderDialog('stable')"
+									>
+										<template #icon>
+											<FolderIcon />
+										</template>
+									</PawsInput>
+								</div>
+							</PawsCard>
+
+							<PawsCard class="settings-card">
+								<template #heading>
+									<PawsHeading size="sm" font-weight="600" align="left">advanced</PawsHeading>
+								</template>
+								<!-- Advanced settings content will go here -->
+							</PawsCard>
+						</div>
 					</div>
 				</div>
 			</Transition>
@@ -48,13 +147,12 @@ import { closeSettings, modalState } from "@renderer/state/modal.state";
 }
 
 .settings-overlay {
-	position: fixed;
+	position: absolute;
 	top: 0;
 	left: 0;
-	width: 100vw;
-	height: 100vh;
+	width: 100%;
+	height: 100%;
 	background-color: rgba(0, 0, 0, 0.65);
-	backdrop-filter: blur(8px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -70,25 +168,23 @@ import { closeSettings, modalState } from "@renderer/state/modal.state";
 	box-shadow:
 		0 25px 50px -12px rgba(0, 0, 0, 0.5),
 		0 0 1px 1px rgba(255, 255, 255, 0.05) inset;
-	display: flex;
-	flex-direction: column;
 	overflow: hidden;
 }
 
-.settings-header {
-	padding: 24px 28px;
+.settings-container {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	padding: 4px 20px 20px 20px;
+	box-sizing: border-box;
+}
+
+.header-row {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	background: linear-gradient(to bottom, rgba(255, 255, 255, 0.02), transparent);
-}
-
-.settings-title {
-	margin: 0;
-	font-size: 22px;
-	font-weight: 600;
-	color: var(--paws-color-text-primary);
-	letter-spacing: -0.01em;
+	/* No bottom border or explicit padding here, parent padding handles layout */
+	min-height: 48px; /* Ensure sufficient height for alignment */
 }
 
 .close-button {
@@ -103,6 +199,7 @@ import { closeSettings, modalState } from "@renderer/state/modal.state";
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	/* Optional: Align close button nicely with the large heading */
 }
 
 .close-button:hover {
@@ -110,9 +207,25 @@ import { closeSettings, modalState } from "@renderer/state/modal.state";
 	color: var(--paws-color-text-primary);
 }
 
-.settings-content {
+.cards-container {
+	margin-top: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
 	flex: 1;
-	padding: 24px;
 	overflow-y: auto;
+}
+
+.settings-card {
+	width: 100%;
+	box-sizing: border-box;
+}
+
+.input-row {
+	margin-bottom: 16px;
+}
+
+.input-row:last-child {
+	margin-bottom: 0;
 }
 </style>

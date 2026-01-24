@@ -10,8 +10,10 @@ import styles from "./Layout.module.css";
 <template>
 	<div :class="styles.layout">
 		<Titlebar />
-		<AppMenu />
-		<Content />
-		<SettingsModal />
+		<div :class="styles.mainContainer">
+			<AppMenu />
+			<Content />
+			<SettingsModal />
+		</div>
 	</div>
 </template>
