@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { closeMenu, menuState } from "@renderer/state/menu.state";
+import { openSettings } from "@renderer/state/modal.state";
 import { pluginState, setActivePlugin } from "@renderer/state/plugin.state";
 import { themeState } from "@renderer/state/theme.state";
 
@@ -15,6 +16,11 @@ const toggleTheme = (): void => {
 	const currentIndex = themeState.availableThemes.findIndex(t => t.id === themeState.activeThemeId);
 	const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
 	themeState.activeThemeId = themeState.availableThemes[nextIndex].id;
+};
+
+const handleOpenSettings = (): void => {
+	openSettings();
+	closeMenu();
 };
 </script>
 
@@ -49,7 +55,9 @@ const toggleTheme = (): void => {
 				<div :class="styles.footer">
 					<button :class="styles.footerButton" title="Plugins Management">📦</button>
 					<button :class="styles.footerButton" title="Switch Theme" @click="toggleTheme">🌗</button>
-					<button :class="styles.footerButton" title="Settings">⚙️</button>
+					<button :class="styles.footerButton" title="Settings" @click="handleOpenSettings">
+						⚙️
+					</button>
 				</div>
 			</div>
 		</div>
