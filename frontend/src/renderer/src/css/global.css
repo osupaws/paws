@@ -9,6 +9,17 @@ body,
 	user-select: none;
 }
 
+/* Force consistent font rendering globally */
+*,
+*::before,
+*::after,
+button,
+input {
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
 #app,
 button {
 	font-family: var(--paws-font-primary);
