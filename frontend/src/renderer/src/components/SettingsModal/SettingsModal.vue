@@ -147,7 +147,7 @@ const handleThemeChange = (newThemeId: string): void => {
 									<PawsHeading size="sm" font-weight="600" align="left">advanced</PawsHeading>
 								</template>
 
-								<div class="input-row">
+								<div class="input-row checkbox-row">
 									<PawsCheckbox
 										label="legacy mode"
 										:model-value="settingsState.isLegacyMode"
@@ -277,5 +277,9 @@ const handleThemeChange = (newThemeId: string): void => {
 /* Force dropdown to full width */
 .input-row :deep(.paws-dropdown) {
 	width: 100%;
+}
+
+.checkbox-row {
+	align-items: flex-start;
 }
 </style>

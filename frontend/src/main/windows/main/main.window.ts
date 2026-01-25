@@ -11,6 +11,7 @@ export const createMainWindow = (splashWindow: BrowserWindow): BrowserWindow => 
 		frame: false,
 		show: false,
 		titleBarStyle: "hidden",
+		backgroundColor: "#000000",
 		webPreferences: {
 			preload: join(__dirname, "../preload/index.js"),
 			sandbox: false,

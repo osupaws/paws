@@ -29,7 +29,9 @@
 	font-family: "Fredoka", sans-serif;
 	font-weight: 500;
 	font-size: 32px;
-	color: var(--paws-color-inactive-secondary);
+	color: var(--paws-color-text-primary);
+	position: relative;
+	top: -4px;
 }
 
 .userButton {

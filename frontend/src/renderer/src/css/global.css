@@ -9,21 +9,17 @@ body,
 	user-select: none;
 }
 
-/* Force consistent font rendering globally */
-*,
-*::before,
-*::after,
-button,
-input {
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
-	text-rendering: optimizeLegibility;
-}
-
 #app,
 button {
 	font-family: var(--paws-font-primary);
 	color: var(--paws-color-text-primary);
+	font-weight: 500; /* Minimum visual weight as requested */
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+	opacity: 0.999; /* Force grayscale antialiasing by creating a compositor layer */
 }
 
 body {
