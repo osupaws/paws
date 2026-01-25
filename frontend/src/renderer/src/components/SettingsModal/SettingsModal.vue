@@ -11,7 +11,9 @@ import { closeSettings, modalState } from "@renderer/state/modal.state";
 import {
 	setLazerPath,
 	setLegacyMode,
+	setShowTips,
 	setStablePath,
+	setSwitchOnLogoEnabled,
 	settingsState
 } from "@renderer/state/settings.state";
 import { setActiveTheme, themeState } from "@renderer/state/theme.state";
@@ -147,11 +149,24 @@ const handleThemeChange = (newThemeId: string): void => {
 									<PawsHeading size="sm" font-weight="600" align="left">advanced</PawsHeading>
 								</template>
 
-								<div class="input-row checkbox-row">
+								<div class="input-row checkbox-row checkbox-group">
 									<PawsCheckbox
 										label="legacy mode"
 										:model-value="settingsState.isLegacyMode"
 										@update:model-value="setLegacyMode"
+									/>
+									<PawsCheckbox
+										label="switch on logo"
+										:model-value="settingsState.isSwitchOnLogoEnabled"
+										@update:model-value="setSwitchOnLogoEnabled"
+									/>
+								</div>
+
+								<div class="input-row checkbox-row">
+									<PawsCheckbox
+										label="show tips"
+										:model-value="settingsState.isShowTips"
+										@update:model-value="setShowTips"
 									/>
 								</div>
 							</PawsCard>
@@ -281,5 +296,11 @@ const handleThemeChange = (newThemeId: string): void => {
 
 .checkbox-row {
 	align-items: flex-start;
+}
+
+.checkbox-group {
+	flex-direction: row;
+	align-items: center;
+	gap: 20px;
 }
 </style>

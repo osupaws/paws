@@ -31,7 +31,10 @@
 	align-items: center;
 	justify-content: center;
 	position: relative;
-	-webkit-app-region: drag;
+}
+
+.interactive {
+	-webkit-app-region: no-drag;
 }
 
 .legacyText {

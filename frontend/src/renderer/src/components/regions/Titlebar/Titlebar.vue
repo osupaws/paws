@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { menuState, toggleMenu } from "@renderer/state/menu.state";
-import { settingsState } from "@renderer/state/settings.state";
+import { setLegacyMode, settingsState } from "@renderer/state/settings.state";
 
 import styles from "./Titlebar.module.css";
 
@@ -11,6 +11,12 @@ const minimizeWindow = (): void => {
 
 const closeWindow = (): void => {
 	window.api.electron.closeApp();
+};
+
+const handleLogoDblClick = async (): Promise<void> => {
+	if (settingsState.isSwitchOnLogoEnabled) {
+		await setLegacyMode(!settingsState.isLegacyMode);
+	}
 };
 </script>
 
@@ -29,7 +35,13 @@ const closeWindow = (): void => {
 
 		<!-- Центральная секция: Логотип -->
 		<div :class="styles.center">
-			<div :class="styles.logoContainer">
+			<div
+				:class="[
+					styles.logoContainer,
+					{ [styles.interactive]: settingsState.isSwitchOnLogoEnabled }
+				]"
+				@dblclick="handleLogoDblClick"
+			>
 				<Transition name="legacy">
 					<span v-if="settingsState.isLegacyMode" :class="styles.legacyText">legacy</span>
 				</Transition>

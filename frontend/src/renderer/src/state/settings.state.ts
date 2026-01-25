@@ -2,6 +2,8 @@ import { reactive } from "vue";
 
 export const settingsState = reactive({
 	isLegacyMode: false,
+	isSwitchOnLogoEnabled: false,
+	isShowTips: true, // Default to true for tips usually
 	stablePath: null as string | null,
 	lazerPath: null as string | null
 });
@@ -39,6 +41,12 @@ export async function initializeSettings(): Promise<void> {
 		);
 
 		settingsState.isLegacyMode = settingsMap["core.modes.legacy"] === "true";
+		settingsState.isSwitchOnLogoEnabled = settingsMap["core.ui.switchOnLogo"] === "true";
+		// For tips, default is true if key is missing, or parse value
+		settingsState.isShowTips =
+			settingsMap["core.ui.showTips"] !== undefined
+				? settingsMap["core.ui.showTips"] === "true"
+				: true;
 		settingsState.stablePath = settingsMap["core.paths.stable"] || null;
 		settingsState.lazerPath = settingsMap["core.paths.lazer"] || null;
 
@@ -54,6 +62,22 @@ export async function initializeSettings(): Promise<void> {
 export async function setLegacyMode(enabled: boolean): Promise<void> {
 	settingsState.isLegacyMode = enabled;
 	await saveSetting("core.modes.legacy", enabled.toString(), "bool");
+}
+
+/**
+ * Updates the switch on logo setting.
+ */
+export async function setSwitchOnLogoEnabled(enabled: boolean): Promise<void> {
+	settingsState.isSwitchOnLogoEnabled = enabled;
+	await saveSetting("core.ui.switchOnLogo", enabled.toString(), "bool");
+}
+
+/**
+ * Updates the show tips setting.
+ */
+export async function setShowTips(enabled: boolean): Promise<void> {
+	settingsState.isShowTips = enabled;
+	await saveSetting("core.ui.showTips", enabled.toString(), "bool");
 }
 
 /**
