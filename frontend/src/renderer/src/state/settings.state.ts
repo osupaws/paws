@@ -1,3 +1,4 @@
+import { setPawsUiConfig } from "@osupaws/paws-ui";
 import { reactive } from "vue";
 
 export const settingsState = reactive({
@@ -50,6 +51,9 @@ export async function initializeSettings(): Promise<void> {
 		settingsState.stablePath = settingsMap["core.paths.stable"] || null;
 		settingsState.lazerPath = settingsMap["core.paths.lazer"] || null;
 
+		// Sync UI config
+		setPawsUiConfig({ showTooltips: settingsState.isShowTips });
+
 		console.log("[Settings] Loaded settings from backend:", settingsMap);
 	} catch (error) {
 		console.error("[Settings] Failed to load settings:", error);
@@ -77,6 +81,7 @@ export async function setSwitchOnLogoEnabled(enabled: boolean): Promise<void> {
  */
 export async function setShowTips(enabled: boolean): Promise<void> {
 	settingsState.isShowTips = enabled;
+	setPawsUiConfig({ showTooltips: enabled });
 	await saveSetting("core.ui.showTips", enabled.toString(), "bool");
 }
 

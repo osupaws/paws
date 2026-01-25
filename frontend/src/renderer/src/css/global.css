@@ -25,3 +25,7 @@ button {
 body {
 	background-color: var(--paws-color-bg-titlebar);
 }
+
+*::-webkit-scrollbar {
+	display: none;
+}

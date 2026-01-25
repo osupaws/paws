@@ -103,6 +103,7 @@ const handleThemeChange = (newThemeId: string): void => {
 								<div class="input-row">
 									<PawsInput
 										v-model="localLazerPath"
+										v-paws-tooltip="'select the location of your osu!lazer installation'"
 										button-text="lazer path"
 										placeholder="select osu!lazer directory"
 										:is-icon-clickable="true"
@@ -120,6 +121,7 @@ const handleThemeChange = (newThemeId: string): void => {
 								<div class="input-row">
 									<PawsInput
 										v-model="localStablePath"
+										v-paws-tooltip="'select the location of your osu!stable installation'"
 										button-text="stable path"
 										placeholder="select osu!stable directory"
 										:is-icon-clickable="true"
@@ -136,6 +138,7 @@ const handleThemeChange = (newThemeId: string): void => {
 
 								<div class="input-row">
 									<PawsDropdown
+										v-paws-tooltip="'choose the visual theme of the application'"
 										:options="themeOptions.map(o => o.value)"
 										:model-value="themeState.activeThemeId"
 										placeholder="select theme"
@@ -151,11 +154,13 @@ const handleThemeChange = (newThemeId: string): void => {
 
 								<div class="input-row checkbox-row checkbox-group">
 									<PawsCheckbox
+										v-paws-tooltip="'enables integration with osu!stable instead of osu!lazer'"
 										label="legacy mode"
 										:model-value="settingsState.isLegacyMode"
 										@update:model-value="setLegacyMode"
 									/>
 									<PawsCheckbox
+										v-paws-tooltip="'double-click the titlebar logo to toggle legacy mode'"
 										label="switch on logo"
 										:model-value="settingsState.isSwitchOnLogoEnabled"
 										@update:model-value="setSwitchOnLogoEnabled"
@@ -164,7 +169,8 @@ const handleThemeChange = (newThemeId: string): void => {
 
 								<div class="input-row checkbox-row">
 									<PawsCheckbox
-										label="show tips"
+										v-paws-tooltip="'show helpful tooltips when hovering over interface elements'"
+										label="show tips on hover"
 										:model-value="settingsState.isShowTips"
 										@update:model-value="setShowTips"
 									/>
@@ -224,7 +230,6 @@ const handleThemeChange = (newThemeId: string): void => {
 	box-shadow:
 		0 25px 50px -12px rgba(0, 0, 0, 0.5),
 		0 0 1px 1px rgba(255, 255, 255, 0.05) inset;
-	overflow: hidden;
 }
 
 .settings-container {
@@ -302,5 +307,9 @@ const handleThemeChange = (newThemeId: string): void => {
 	flex-direction: row;
 	align-items: center;
 	gap: 20px;
+}
+
+.input-row :deep(input) {
+	text-transform: lowercase;
 }
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { PawsTooltip } from "@osupaws/paws-ui";
 import Layout from "@renderer/components/Layout/Layout.vue";
 import { getActiveThemeInfo, themeState } from "@renderer/state/theme.state";
 import { watch } from "vue";
@@ -41,6 +42,7 @@ watch(
 <template>
 	<div class="app-container">
 		<Layout />
+		<PawsTooltip />
 	</div>
 </template>
 
