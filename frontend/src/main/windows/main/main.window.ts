@@ -8,6 +8,7 @@ export const createMainWindow = (splashWindow: BrowserWindow): BrowserWindow => 
 		width: 640,
 		height: 800,
 		resizable: false,
+		maximizable: false,
 		frame: false,
 		show: false,
 		titleBarStyle: "hidden",
