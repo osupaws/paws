@@ -1,6 +1,7 @@
 # Git Ignore for Paws PreRelease (pawsprtp)
 
 .gemini
+.agent
 DVRSRCS
 
 # --- Electron App ---

@@ -1,5 +1,13 @@
 .layout {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
+	height: 100vh;
+	overflow: hidden;
+}
+
+.mainContainer {
+	flex: 1;
+	position: relative;
+	overflow: hidden;
+	border-radius: var(--paws-rounding-big, 16px) var(--paws-rounding-big, 16px) 0 0;
 }

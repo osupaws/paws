@@ -1,7 +1,17 @@
 <script setup lang="ts">
+import {
+	DarkModeIcon,
+	LightModeIcon,
+	PawsMenuButton,
+	PawsMultiSwitch,
+	PluginIcon,
+	SettingsIcon
+} from "@osupaws/paws-ui";
 import { closeMenu, menuState } from "@renderer/state/menu.state";
+import { openSettings } from "@renderer/state/modal.state";
 import { pluginState, setActivePlugin } from "@renderer/state/plugin.state";
-import { themeState } from "@renderer/state/theme.state";
+import { setThemeBase, themeState } from "@renderer/state/theme.state";
+import { computed } from "vue";
 
 import styles from "./AppMenu.module.css";
 
@@ -10,11 +20,20 @@ const selectPlugin = (id: string): void => {
 	closeMenu();
 };
 
-const toggleTheme = (): void => {
-	// Basic theme switch logic for testing
-	const currentIndex = themeState.availableThemes.findIndex(t => t.id === themeState.activeThemeId);
-	const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
-	themeState.activeThemeId = themeState.availableThemes[nextIndex].id;
+const themeModel = computed({
+	get: () => {
+		const currentTheme = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
+		// Default to 'dark' if unknown or explicitly 'dark'
+		return currentTheme?.base === "light" ? "light" : "dark";
+	},
+	set: (val: string) => {
+		setThemeBase(val as "dark" | "light");
+	}
+});
+
+const handleOpenSettings = (): void => {
+	openSettings();
+	closeMenu();
 };
 </script>
 
@@ -24,7 +43,7 @@ const toggleTheme = (): void => {
 			<div :class="styles.menu">
 				<!-- Section: Client Launcher Placeholder -->
 				<div :class="[styles.section, styles.paddedSection]">
-					<PawsMenuButton>launch akatsuki</PawsMenuButton>
+					<PawsMenuButton label="launch akatsuki">launch akatsuki</PawsMenuButton>
 				</div>
 
 				<!-- Section: Plugins -->
@@ -33,6 +52,7 @@ const toggleTheme = (): void => {
 						<PawsMenuButton
 							v-for="plugin in pluginState.loadedPlugins"
 							:key="plugin.id"
+							:label="plugin.name"
 							:active="pluginState.activePluginId === plugin.id"
 							@click="selectPlugin(plugin.id)"
 						>
@@ -47,9 +67,36 @@ const toggleTheme = (): void => {
 
 				<!-- Footer: Settings, Theme, etc. -->
 				<div :class="styles.footer">
-					<button :class="styles.footerButton" title="Plugins Management">📦</button>
-					<button :class="styles.footerButton" title="Switch Theme" @click="toggleTheme">🌗</button>
-					<button :class="styles.footerButton" title="Settings">⚙️</button>
+					<PawsMenuButton
+						:class="styles.footerButton"
+						label="Plugins"
+						tooltip="Plugins"
+						@click="() => {}"
+					>
+						<template #icon>
+							<PluginIcon />
+						</template>
+					</PawsMenuButton>
+
+					<PawsMultiSwitch v-model="themeModel" :options="['light', 'dark']">
+						<template #light>
+							<LightModeIcon />
+						</template>
+						<template #dark>
+							<DarkModeIcon />
+						</template>
+					</PawsMultiSwitch>
+
+					<PawsMenuButton
+						:class="styles.footerButton"
+						label="Settings"
+						tooltip="Settings"
+						@click="handleOpenSettings"
+					>
+						<template #icon>
+							<SettingsIcon />
+						</template>
+					</PawsMenuButton>
 				</div>
 			</div>
 		</div>

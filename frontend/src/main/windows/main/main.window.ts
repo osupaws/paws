@@ -8,9 +8,11 @@ export const createMainWindow = (splashWindow: BrowserWindow): BrowserWindow => 
 		width: 640,
 		height: 800,
 		resizable: false,
+		maximizable: false,
 		frame: false,
 		show: false,
 		titleBarStyle: "hidden",
+		backgroundColor: "#000000",
 		webPreferences: {
 			preload: join(__dirname, "../preload/index.js"),
 			sandbox: false,

@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import { PawsTooltip } from "@osupaws/paws-ui";
 import Layout from "@renderer/components/Layout/Layout.vue";
-import { setLegacyMode, settingsState } from "@renderer/state/settings.state";
 import { getActiveThemeInfo, themeState } from "@renderer/state/theme.state";
-import { computed, watch } from "vue";
+import { watch } from "vue";
 // This watcher handles all side effects of a theme change.
 watch(
 	() => themeState.activeThemeId,
@@ -37,48 +37,12 @@ watch(
 	},
 	{ immediate: true }
 );
-
-// TEMPORARY THEME SWITCH
-const toggleTheme = (): void => {
-	// Add transition class to body for animation
-	document.body.classList.add("paws-theme-transitioning");
-
-	const currentIndex = themeState.availableThemes.findIndex(t => t.id === themeState.activeThemeId);
-	const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
-	themeState.activeThemeId = themeState.availableThemes[nextIndex].id;
-
-	// Remove transition class after animation duration
-	setTimeout(() => {
-		document.body.classList.remove("paws-theme-transitioning");
-	}, 300); // Match CSS transition duration
-};
-
-const nextThemeName = computed(() => {
-	const currentIndex = themeState.availableThemes.findIndex(t => t.id === themeState.activeThemeId);
-	const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
-	return themeState.availableThemes[nextIndex]?.name || "Unknown";
-});
-
-const toggleLegacyMode = (): void => {
-	setLegacyMode(!settingsState.isLegacyMode);
-};
 </script>
 
 <template>
 	<div class="app-container">
 		<Layout />
-		<button
-			style="position: absolute; bottom: 10px; right: 10px; padding: 10px; z-index: 1000"
-			@click="toggleTheme"
-		>
-			Switch to {{ nextThemeName }}
-		</button>
-		<button
-			style="position: absolute; bottom: 10px; left: 10px; padding: 10px; z-index: 1000"
-			@click="toggleLegacyMode"
-		>
-			Current Mode: {{ settingsState.isLegacyMode ? "Stable (Legacy)" : "Lazer" }}
-		</button>
+		<PawsTooltip />
 	</div>
 </template>
 

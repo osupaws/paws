@@ -128,18 +128,30 @@ pathsApi.MapPost("/lazer", ([FromBody] SetPathRequest req, LazerDbService servic
 });
 
 
-// --- Configuration Management Endpoints ---
+// --- Configuration Management Endpoints (Legacy Adapter) ---
 var configApi = api.MapGroup("/config");
 configApi.MapGet("", (PawsDbService db) => {
-    var config = db.GetConfig();
-    return Results.Ok(new { config.IsLegacyMode, config.StablePath, config.LazerPath });
+    var stable = db.GetSetting("core.paths.stable")?.Value;
+    var lazer = db.GetSetting("core.paths.lazer")?.Value;
+    var legacy = db.GetSetting("core.modes.legacy")?.Value == "true";
+    return Results.Ok(new { IsLegacyMode = legacy, StablePath = stable, LazerPath = lazer });
 });
 configApi.MapPost("", ([FromBody] UpdateConfigRequest req, PawsDbService db) => {
-    db.SetConfig(config => {
-        if (req.IsLegacyMode.HasValue) config.IsLegacyMode = req.IsLegacyMode.Value;
-        if (req.StablePath != null) config.StablePath = req.StablePath;
-        if (req.LazerPath != null) config.LazerPath = req.LazerPath;
-    });
+    if (req.IsLegacyMode.HasValue) db.SetSetting("core.modes.legacy", req.IsLegacyMode.Value.ToString().ToLower(), "bool");
+    if (req.StablePath != null) db.SetSetting("core.paths.stable", req.StablePath, "string");
+    if (req.LazerPath != null) db.SetSetting("core.paths.lazer", req.LazerPath, "string");
+    return Results.Ok();
+});
+
+// --- Generic Settings Management Endpoints ---
+var settingsApi = api.MapGroup("/settings");
+settingsApi.MapGet("", (PawsDbService db) => Results.Ok(db.GetAllSettings()));
+settingsApi.MapGet("{key}", (string key, PawsDbService db) => {
+    var setting = db.GetSetting(key);
+    return setting != null ? Results.Ok(setting) : Results.NotFound();
+});
+settingsApi.MapPost("", ([FromBody] UpdateSettingRequest req, PawsDbService db) => {
+    db.SetSetting(req.Key, req.Value, req.Type);
     return Results.Ok();
 });
 
@@ -188,3 +200,4 @@ public record SetPathRequest(string Path);
 public record ImportThemeRequest(string FilePath);
 public record ExecuteCommandRequest(string CommandName, object? Payload);
 public record UpdateConfigRequest(bool? IsLegacyMode, string? StablePath, string? LazerPath);
+public record UpdateSettingRequest(string Key, string Value, string Type = "string");
