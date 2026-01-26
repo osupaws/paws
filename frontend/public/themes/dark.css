@@ -39,5 +39,10 @@
 
 		/* Fonts */
 		--paws-font-primary: "Wix Madefor Display", system-ui, sans-serif;
+
+		--paws-font-weight-light: 450;
+		--paws-font-weight-normal: 550;
+		--paws-font-weight-medium: 600;
+		--paws-font-weight-bold: 700;
 	}
 }

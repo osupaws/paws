@@ -23,6 +23,7 @@
 
 .right {
 	justify-content: flex-end;
+	gap: 2px;
 }
 
 .logoContainer {
@@ -99,18 +100,24 @@
 	background: none;
 	border: none;
 	color: var(--paws-color-text-secondary);
-	font-size: 16px;
 	width: 32px;
 	height: 32px;
-	line-height: 32px;
-	text-align: center;
-	border-radius: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border-radius: var(--paws-rounding-normal);
 	cursor: pointer;
 	transition: background-color 0.2s;
 }
 
 .windowButton:hover {
 	background-color: var(--paws-color-interactive-primary);
+}
+
+.windowButton svg {
+	width: 24px;
+	height: 24px;
 }
 
 .closeButton:hover {

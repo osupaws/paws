@@ -5,7 +5,8 @@ import {
 	PawsCheckbox,
 	PawsDropdown,
 	PawsHeading,
-	PawsInput
+	PawsInput,
+	ThemeIcon
 } from "@osupaws/paws-ui";
 import { closeSettings, modalState } from "@renderer/state/modal.state";
 import {
@@ -90,14 +91,14 @@ const handleThemeChange = (newThemeId: string): void => {
 				<div v-if="modalState.isSettingsOpen" class="settings-modal">
 					<div class="settings-container">
 						<div class="header-row">
-							<PawsHeading size="lg" font-weight="600" align="left">settings</PawsHeading>
+							<PawsHeading size="lg" font-weight="medium" align="left">settings</PawsHeading>
 							<button class="close-button" @click="closeSettings">✕</button>
 						</div>
 
 						<div class="cards-container">
 							<PawsCard class="settings-card">
 								<template #heading>
-									<PawsHeading size="sm" font-weight="600" align="left">general</PawsHeading>
+									<PawsHeading size="sm" font-weight="medium" align="left">general</PawsHeading>
 								</template>
 
 								<div class="input-row">
@@ -141,15 +142,20 @@ const handleThemeChange = (newThemeId: string): void => {
 										v-paws-tooltip="'choose the visual theme of the application'"
 										:options="themeOptions.map(o => o.value)"
 										:model-value="themeState.activeThemeId"
+										button-text="theme"
 										placeholder="select theme"
 										@update:model-value="handleThemeChange"
-									/>
+									>
+										<template #icon>
+											<ThemeIcon />
+										</template>
+									</PawsDropdown>
 								</div>
 							</PawsCard>
 
 							<PawsCard class="settings-card">
 								<template #heading>
-									<PawsHeading size="sm" font-weight="600" align="left">advanced</PawsHeading>
+									<PawsHeading size="sm" font-weight="medium" align="left">advanced</PawsHeading>
 								</template>
 
 								<div class="input-row checkbox-row checkbox-group">

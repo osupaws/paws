@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { CloseIcon, MinimizeIcon } from "@osupaws/paws-ui";
 import { menuState, toggleMenu } from "@renderer/state/menu.state";
 import { setLegacyMode, settingsState } from "@renderer/state/settings.state";
 
@@ -51,8 +52,12 @@ const handleLogoDblClick = async (): Promise<void> => {
 
 		<!-- Правая секция: Кнопки управления окна -->
 		<div :class="styles.right">
-			<button :class="styles.windowButton" @click="minimizeWindow">—</button>
-			<button :class="[styles.windowButton, styles.closeButton]" @click="closeWindow">✕</button>
+			<button :class="styles.windowButton" @click="minimizeWindow">
+				<MinimizeIcon />
+			</button>
+			<button :class="[styles.windowButton, styles.closeButton]" @click="closeWindow">
+				<CloseIcon />
+			</button>
 		</div>
 	</div>
 </template>
