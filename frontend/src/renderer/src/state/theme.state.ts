@@ -22,6 +22,8 @@ const coreThemes: Theme[] = [
 // Reactive store for theme management
 export const themeState = reactive({
 	activeThemeId: "paws-dark", // Will be properly set after initialization
+	lastDarkThemeId: "paws-dark",
+	lastLightThemeId: "paws-light",
 	availableThemes: [...coreThemes] as Theme[]
 });
 
@@ -55,6 +57,18 @@ export async function initializeThemes(): Promise<void> {
 	let savedThemeId = window.api.store.get("activeThemeId", "paws-dark");
 	if (savedThemeId === "dark") savedThemeId = "paws-dark";
 	if (savedThemeId === "light") savedThemeId = "paws-light";
+
+	// Load memory of last used base themes
+	const savedLastDark = window.api.store.get("lastDarkThemeId", "paws-dark");
+	const savedLastLight = window.api.store.get("lastLightThemeId", "paws-light");
+
+	// Verify they still exist
+	if (themeState.availableThemes.some(t => t.id === savedLastDark)) {
+		themeState.lastDarkThemeId = savedLastDark;
+	}
+	if (themeState.availableThemes.some(t => t.id === savedLastLight)) {
+		themeState.lastLightThemeId = savedLastLight;
+	}
 
 	const isSavedThemeAvailable = themeState.availableThemes.some(t => t.id === savedThemeId);
 
@@ -107,13 +121,36 @@ export async function importTheme(filePath: string): Promise<void> {
 
 /**
  * Sets the active theme and persists it.
+ * Also updates the "last used" memory for the theme's base (dark/light).
  */
 export function setActiveTheme(themeId: string): void {
-	if (themeState.availableThemes.some(t => t.id === themeId)) {
+	const theme = themeState.availableThemes.find(t => t.id === themeId);
+
+	if (theme) {
 		themeState.activeThemeId = themeId;
 		window.api.store.set("activeThemeId", themeId);
 		console.log(`[ThemeState] Theme changed to: ${themeId}`);
+
+		// Remember this theme as the last used for its base
+		if (theme.base === "dark") {
+			themeState.lastDarkThemeId = themeId;
+			window.api.store.set("lastDarkThemeId", themeId);
+		} else if (theme.base === "light") {
+			themeState.lastLightThemeId = themeId;
+			window.api.store.set("lastLightThemeId", themeId);
+		}
 	} else {
 		console.warn(`[ThemeState] Attempted to set invalid theme ID: ${themeId}`);
+	}
+}
+
+/**
+ * Switches to the last used theme of the specified base (dark/light).
+ */
+export function setThemeBase(base: "dark" | "light"): void {
+	if (base === "dark") {
+		setActiveTheme(themeState.lastDarkThemeId);
+	} else {
+		setActiveTheme(themeState.lastLightThemeId);
 	}
 }

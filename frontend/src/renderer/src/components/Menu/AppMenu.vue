@@ -10,7 +10,7 @@ import {
 import { closeMenu, menuState } from "@renderer/state/menu.state";
 import { openSettings } from "@renderer/state/modal.state";
 import { pluginState, setActivePlugin } from "@renderer/state/plugin.state";
-import { setActiveTheme, themeState } from "@renderer/state/theme.state";
+import { setThemeBase, themeState } from "@renderer/state/theme.state";
 import { computed } from "vue";
 
 import styles from "./AppMenu.module.css";
@@ -21,10 +21,13 @@ const selectPlugin = (id: string): void => {
 };
 
 const themeModel = computed({
-	get: () => (themeState.activeThemeId?.includes("dark") ? "dark" : "light"),
+	get: () => {
+		const currentTheme = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
+		// Default to 'dark' if unknown or explicitly 'dark'
+		return currentTheme?.base === "light" ? "light" : "dark";
+	},
 	set: (val: string) => {
-		if (val === "dark") setActiveTheme("paws-dark");
-		else setActiveTheme("paws-light");
+		setThemeBase(val as "dark" | "light");
 	}
 });
 
