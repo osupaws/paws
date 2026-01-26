@@ -71,19 +71,7 @@
 }
 
 .footerButton {
-	background-color: var(--paws-color-bg-secondary);
-	border: 1px solid var(--paws-color-bg-tertiary);
-	color: var(--paws-color-text-primary);
-	padding: 8px;
-	border-radius: 6px;
+	width: 44px;
+	height: 32px;
 	cursor: pointer;
-	font-size: 18px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	transition: all 0.2s;
-}
-
-.footerButton:hover {
-	background-color: var(--paws-color-interactive-hover);
 }
