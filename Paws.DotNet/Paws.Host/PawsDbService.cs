@@ -28,9 +28,12 @@ namespace Paws.Host
                     typeof(FileEntry),
                     typeof(Theme),
                     typeof(PawsConfig),
-                    typeof(AppSetting)
+                    typeof(AppSetting),
+                    typeof(FileBlob),
+                    typeof(Plugin),
+                    typeof(PluginFile)
                 },
-                SchemaVersion = 3,
+                SchemaVersion = 4,
             };
         }
 

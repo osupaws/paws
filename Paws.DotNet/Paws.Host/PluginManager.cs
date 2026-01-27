@@ -1,132 +1,192 @@
 using Paws.Core.Abstractions;
+using Paws.Host.Data.Schemas;
 using System.Reflection;
-using System.Text.Json;
-using System.Text.Json.Serialization;
+using System.Runtime.Loader;
 
 namespace Paws.Host;
 
 /// <summary>
-/// Manages the discovery, loading, and access to all Paws plugins.
+/// Manages the discovery, loading, and access to all Paws plugins using the Realm database.
 /// </summary>
 public class PluginManager
 {
-    private readonly List<IFunctionalExplicitPlugin> _loadedPlugins = new();
-    private readonly List<PluginManifest> _discoveredPluginManifests = new();
+    // Key: Plugin DB ID (string), Value: Plugin Instance
+    private readonly Dictionary<string, IFunctionalExplicitPlugin> _loadedPlugins = new();
     private readonly IHostServices _hostServices;
     private readonly ILogger<PluginManager> _logger;
-    private readonly string _pluginsDirectory;
-    private readonly JsonSerializerOptions _jsonOptions;
+    private readonly PawsDbService _dbService;
 
-    public PluginManager(IHostServices hostServices, ILogger<PluginManager> logger)
+    // We store contexts to ensure they don't get collected while the plugin is running
+    // Key: Plugin DB ID (string)
+    private readonly Dictionary<string, AssemblyLoadContext> _pluginContexts = new();
+
+    public PluginManager(IHostServices hostServices, ILogger<PluginManager> logger, PawsDbService dbService)
     {
         _hostServices = hostServices;
         _logger = logger;
-        _pluginsDirectory = Path.Combine(AppContext.BaseDirectory, "plugins");
-        _jsonOptions = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, Converters = { new JsonStringEnumConverter() } };
-        Directory.CreateDirectory(_pluginsDirectory);
+        _dbService = dbService;
     }
 
     /// <summary>
-    /// Scans the plugins directory, validates manifests, and loads only the approved plugins.
+    /// Loads all active plugins from the database. Skips already loaded plugins.
     /// </summary>
-    /// <param name="approvedGuids">A set of GUIDs for plugins that the user has approved for loading.</param>
-    public void DiscoverAndLoadPlugins(IEnumerable<string> approvedGuids)
+    public void DiscoverAndLoadPlugins()
     {
-        var approvedSet = new HashSet<string>(approvedGuids, StringComparer.OrdinalIgnoreCase);
-        _logger.LogInformation("Starting plugin discovery. {Count} plugins are pre-approved.", approvedSet.Count);
+        _logger.LogInformation("Starting plugin discovery from database...");
 
-        foreach (var pluginDir in Directory.GetDirectories(_pluginsDirectory))
+        var config = _dbService.GetRealmConfiguration();
+        using var realm = Realms.Realm.GetInstance(config);
+
+        var allPlugins = realm.All<Plugin>().ToList();
+
+        foreach (var plugin in allPlugins)
         {
-            var manifestPath = Path.Combine(pluginDir, "plugin.json");
-            if (!File.Exists(manifestPath))
+            if (!plugin.IsActive)
             {
-                _logger.LogWarning("Skipping directory '{Directory}' - no plugin.json found.", Path.GetFileName(pluginDir));
+                // Optionally unload if it was previously loaded but now disabled
+                 if (_loadedPlugins.ContainsKey(plugin.Id))
+                 {
+                     _logger.LogInformation("Plugin '{Name}' ({Id}) is now disabled. Unloading...", plugin.Name, plugin.Id);
+                     UnloadPlugin(plugin.Id);
+                 }
                 continue;
             }
 
-            try
+            // IDEMPOTENCY CHECK: If already loaded, skip.
+            if (_loadedPlugins.ContainsKey(plugin.Id))
             {
-                var manifest = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifestPath), _jsonOptions);
-
-                if (manifest is null || string.IsNullOrEmpty(manifest.Id) || string.IsNullOrEmpty(manifest.EntryPoint))
-                {
-                    _logger.LogError("Invalid or incomplete manifest in '{Directory}'. Skipping.", Path.GetFileName(pluginDir));
-                    continue;
-                }
-                
-                _discoveredPluginManifests.Add(manifest);
-
-                if (approvedSet.Contains(manifest.Id))
-                {
-                    LoadSinglePlugin(manifest, pluginDir);
-                }
-                else
-                {
-                    _logger.LogInformation("Plugin '{Name}' ({Id}) is available but not approved.", manifest.Name, manifest.Id);
-                }
+                continue;
             }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to process manifest in '{Directory}'.", Path.GetFileName(pluginDir));
-            }
+
+            LoadSinglePlugin(plugin);
         }
-        _logger.LogInformation("Plugin discovery finished. {LoadedCount} loaded, {DiscoveredCount} discovered in total.", _loadedPlugins.Count, _discoveredPluginManifests.Count);
+
+        _logger.LogInformation("Plugin loading finished. {Count} plugins loaded.", _loadedPlugins.Count);
     }
 
-    private void LoadSinglePlugin(PluginManifest manifest, string pluginDirectory)
+    /// <summary>
+    /// Unloads and then reloads a specific plugin by ID.
+    /// </summary>
+    public void ReloadPlugin(string pluginId)
+    {
+        _logger.LogInformation("Reloading plugin: {Id}", pluginId);
+
+        // 1. Unload existing
+        UnloadPlugin(pluginId);
+
+        // 2. Load from DB
+        var config = _dbService.GetRealmConfiguration();
+        using var realm = Realms.Realm.GetInstance(config);
+
+        var plugin = realm.Find<Plugin>(pluginId);
+        if (plugin != null && plugin.IsActive)
+        {
+            LoadSinglePlugin(plugin);
+        }
+        else
+        {
+            _logger.LogWarning("Plugin {Id} not found or inactive during reload.", pluginId);
+        }
+    }
+
+    private void UnloadPlugin(string pluginId)
+    {
+        if (_loadedPlugins.Remove(pluginId, out var instance))
+        {
+             // If the plugin supports explicit shutdown/dispose, call it here.
+             // if (instance is IDisposable disposable) disposable.Dispose();
+             _logger.LogInformation("Unloaded plugin instance: {Name}", instance.Name);
+        }
+
+        if (_pluginContexts.Remove(pluginId, out var context))
+        {
+            context.Unload();
+            _logger.LogInformation("Unloaded AssemblyLoadContext for: {Id}", pluginId);
+        }
+    }
+
+    private void LoadSinglePlugin(Plugin plugin)
     {
         try
         {
-            var entryPointPath = Path.Combine(pluginDirectory, manifest.EntryPoint);
-            if (!File.Exists(entryPointPath))
+            if (string.IsNullOrEmpty(plugin.EntryPoint))
             {
-                _logger.LogError("EntryPoint DLL not found at '{Path}' for plugin '{Name}'.", entryPointPath, manifest.Name);
+                _logger.LogError("Plugin '{Name}' has no EntryPoint defined.", plugin.Name);
                 return;
             }
 
-            // Load the assembly into the current application domain.
-            var assembly = Assembly.LoadFrom(entryPointPath);
+            // Create a custom load context for isolation and DB loading
+            var context = new DbPluginLoadContext(_dbService, plugin.Id);
+
+            // Derive assembly name from EntryPoint (e.g. "MyPlugin.dll" -> "MyPlugin")
+            var assemblyNameStr = Path.GetFileNameWithoutExtension(plugin.EntryPoint);
+            var assemblyName = new AssemblyName(assemblyNameStr);
+
+            var assembly = context.LoadFromAssemblyName(assemblyName);
+
+            if (assembly == null)
+            {
+                 _logger.LogError("Failed to load assembly '{EntryPoint}' for plugin '{Name}'.", plugin.EntryPoint, plugin.Name);
+                 return;
+            }
+
             var pluginType = assembly.GetTypes().FirstOrDefault(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
 
             if (pluginType == null)
             {
-                 _logger.LogError("No type implementing IPlugin found in '{EntryPoint}'.", manifest.EntryPoint);
+                 _logger.LogError("No type implementing IPlugin found in '{EntryPoint}'.", plugin.EntryPoint);
                  return;
             }
-            
+
             // Create an instance of the plugin and initialize it.
-            if (Activator.CreateInstance(pluginType) is IFunctionalExplicitPlugin plugin)
+            if (Activator.CreateInstance(pluginType) is IFunctionalExplicitPlugin pluginInstance)
             {
-                plugin.Initialize(_hostServices);
-                _loadedPlugins.Add(plugin);
-                _logger.LogInformation("Successfully loaded plugin: {Name} (v{Version})", plugin.Name, plugin.Version);
+                pluginInstance.Initialize(_hostServices);
+
+                // Store in Dictionary keyed by DB ID string
+                _loadedPlugins[plugin.Id] = pluginInstance;
+                _pluginContexts[plugin.Id] = context;
+
+                _logger.LogInformation("Successfully loaded plugin: {Name} (v{Version})", pluginInstance.Name, pluginInstance.Version);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Exception while loading plugin '{Name}'.", manifest.Name);
+            _logger.LogError(ex, "Exception while loading plugin '{Name}'.", plugin.Name);
         }
     }
 
     /// <summary>Gets a read-only list of plugins that are loaded and running.</summary>
-    public IEnumerable<IFunctionalExplicitPlugin> GetLoadedPlugins() => _loadedPlugins.AsReadOnly();
-    
-    /// <summary>Gets a read-only list of all plugins that were discovered, whether loaded or not.</summary>
-    public IEnumerable<PluginManifest> GetDiscoveredPlugins() => _discoveredPluginManifests.AsReadOnly();
+    public IEnumerable<IFunctionalExplicitPlugin> GetLoadedPlugins() => _loadedPlugins.Values;
 
-    /// <summary>Gets a list of plugins that have been discovered but are not currently loaded (i.e., pending user approval).</summary>
-    public IEnumerable<PluginManifest> GetPendingPlugins()
+    /// <summary>Gets a list of all installed plugins (active and inactive).</summary>
+    public IEnumerable<PluginManifest> GetAllPlugins()
     {
-        var loadedGuids = new HashSet<string>(_loadedPlugins.Select(p => p.Id.ToString()), StringComparer.OrdinalIgnoreCase);
-        return _discoveredPluginManifests.Where(m => !loadedGuids.Contains(m.Id));
+        var config = _dbService.GetRealmConfiguration();
+        using var realm = Realms.Realm.GetInstance(config);
+
+        return realm.All<Plugin>().ToList().Select(p => new PluginManifest(
+            p.Id,
+            p.Name,
+            p.Version,
+            p.EntryPoint,
+            p.Author,
+            p.Description,
+            string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
+            p.IsActive
+        )).ToList();
     }
 
     /// <summary>Retrieves a specific loaded plugin by its unique ID.</summary>
-    public IFunctionalExplicitPlugin? GetPluginById(Guid pluginId) => _loadedPlugins.FirstOrDefault(p => p.Id == pluginId);
+    public IFunctionalExplicitPlugin? GetPluginById(Guid pluginGuid)
+    {
+        // This is inefficient (O(N)) but usually N is small.
+        // If needed we can maintain a secondary Guid->Instance map.
+        return _loadedPlugins.Values.FirstOrDefault(p => p.Id == pluginGuid);
+    }
 }
 
-// --- Manifest Records ---
-// Using records for immutable, simple data structures.
+// --- Manifest Records (Updated for API) ---
 public record PluginManifest(
     string Id,
     string Name,
@@ -134,7 +194,8 @@ public record PluginManifest(
     string EntryPoint,
     string? Author,
     string? Description,
-    PluginUiManifest? Ui
+    PluginUiManifest? Ui,
+    bool IsActive
 );
 
 public record PluginUiManifest(
