@@ -9,5 +9,6 @@ namespace Paws.Core.Abstractions
         string Name { get; }
         string Description { get; }
         string Version { get; }
+        string? Author { get { return null; } } // Default implementation for compatibility
     }
 }

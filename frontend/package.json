@@ -24,7 +24,7 @@
 	"dependencies": {
 		"@electron-toolkit/preload": "^3.0.1",
 		"@electron-toolkit/utils": "^4.0.0",
-		"@osupaws/paws-ui": "0.3.0-alpha",
+		"@osupaws/paws-ui": "0.3.2-alpha",
 		"electron-log": "^5.4.1",
 		"electron-store": "^8.2.0",
 		"electron-updater": "^6.3.9"

@@ -88,6 +88,25 @@ public class PluginInstallerService
 
             realm.Add(plugin);
 
+            // Populate lists (must be done after adding to Realm or on a managed object if we could init them, but for unmanaged objects with getter-only IList they are null)
+            // Actually, for unmanaged objects, we can't write to getter-only properties if they are null.
+            // But since we just added it to Realm, 'plugin' is now a managed object proxy, so Permissions is a valid Realm collection.
+
+            // Permissions, Provides, Consumes are IList<string> in Realm object, derived from schema.
+            // We just add to them.
+            if (manifest.Permissions != null)
+            {
+                foreach (var p in manifest.Permissions) plugin.Permissions.Add(p);
+            }
+            if (manifest.Provides != null)
+            {
+                foreach (var p in manifest.Provides) plugin.Provides.Add(p);
+            }
+            if (manifest.Consumes != null)
+            {
+                foreach (var p in manifest.Consumes) plugin.Consumes.Add(p);
+            }
+
             // 3. Import Files
             var allFiles = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
             foreach (var file in allFiles)

@@ -21,6 +21,10 @@ namespace Paws.Host.Data.Schemas
 
         public bool IsActive { get; set; } = true;
 
+        public IList<string> Permissions { get; } = null!;
+        public IList<string> Provides { get; } = null!;
+        public IList<string> Consumes { get; } = null!;
+
         [Backlink(nameof(PluginFile.Plugin))]
         public IQueryable<PluginFile> Files { get; } = null!;
     }

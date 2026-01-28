@@ -174,11 +174,28 @@ pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, Plugi
     }
 });
 
+pluginsApi.MapPost("/toggle-active", ([FromBody] TogglePluginRequest req, PluginManager pm) =>
+{
+    pm.SetPluginActive(req.Id, req.IsActive);
+    return Results.Ok();
+});
+
 pluginsApi.MapGet("/loaded", (PluginManager pm) => {
     // Return a DTO (Data Transfer Object) to control the data shape.
     var result = pm.GetLoadedPlugins().Select(p => {
         var manifest = pm.GetAllPlugins().FirstOrDefault(m => m.Id.Equals(p.Id.ToString(), StringComparison.OrdinalIgnoreCase));
-        return new { p.Id, p.Name, p.Version, p.Description, Ui = manifest?.Ui };
+        return new
+        {
+            p.Id,
+            p.Name,
+            p.Version,
+            p.Description,
+            manifest?.Author,
+            manifest?.Permissions,
+            manifest?.Provides,
+            manifest?.Consumes,
+            Ui = manifest?.Ui
+        };
     });
     return Results.Ok(result);
 });
@@ -256,3 +273,4 @@ public record ExecuteCommandRequest(string CommandName, object? Payload);
 public record UpdateConfigRequest(bool? IsLegacyMode, string? StablePath, string? LazerPath);
 public record UpdateSettingRequest(string Key, string Value, string Type = "string");
 public record InstallPluginRequest(string FilePath);
+public record TogglePluginRequest(string Id, bool IsActive);

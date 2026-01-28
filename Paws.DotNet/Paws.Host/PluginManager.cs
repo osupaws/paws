@@ -173,8 +173,38 @@ public class PluginManager
             p.Author,
             p.Description,
             string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
+            p.Permissions.ToList(),
+            p.Provides.ToList(),
+            p.Consumes.ToList(),
             p.IsActive
         )).ToList();
+    }
+
+    /// <summary>Sets the active state of a plugin and loads/unloads it accordingly.</summary>
+    public void SetPluginActive(string pluginId, bool isActive)
+    {
+        var config = _dbService.GetRealmConfiguration();
+        using var realm = Realms.Realm.GetInstance(config);
+
+        var plugin = realm.Find<Plugin>(pluginId);
+        if (plugin == null) return;
+
+        realm.Write(() =>
+        {
+            plugin.IsActive = isActive;
+        });
+
+        if (isActive)
+        {
+            if (!_loadedPlugins.ContainsKey(pluginId))
+            {
+                LoadSinglePlugin(plugin);
+            }
+        }
+        else
+        {
+            UnloadPlugin(pluginId);
+        }
     }
 
     /// <summary>Retrieves a specific loaded plugin by its unique ID.</summary>
@@ -195,7 +225,10 @@ public record PluginManifest(
     string? Author,
     string? Description,
     PluginUiManifest? Ui,
-    bool IsActive
+    List<string>? Permissions = null,
+    List<string>? Provides = null,
+    List<string>? Consumes = null,
+    bool IsActive = true
 );
 
 public record PluginUiManifest(
