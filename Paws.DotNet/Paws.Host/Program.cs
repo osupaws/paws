@@ -158,7 +158,7 @@ settingsApi.MapPost("", ([FromBody] UpdateSettingRequest req, PawsDbService db) 
 // --- Plugin Management Endpoints ---
 var pluginsApi = api.MapGroup("/plugins");
 
-pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, PluginInstallerService installer, PluginManager pm) => {
+pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, PluginInstallerService installer, PluginManager pm, ILogger<Program> logger) => {
     try
     {
         var manifest = await installer.InstallPluginAsync(req.FilePath);
@@ -170,6 +170,7 @@ pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, Plugi
     }
     catch (Exception ex)
     {
+        logger.LogError(ex, "Plugin installation failed for file: {FilePath}", req.FilePath);
         return Results.Problem(ex.Message);
     }
 });
@@ -220,7 +221,8 @@ pluginsApi.MapPost("/execute/{pluginId}", async (Guid pluginId, [FromBody] Execu
 });
 
 // Serve plugin UI files (e.g. for paws-plugin protocol)
-pluginsApi.MapGet("/{pluginId}/files/{*path}", (string pluginId, string path, PawsDbService db) => {
+// Serve plugin UI files (e.g. for paws-plugin protocol)
+pluginsApi.MapGet("/{pluginId}/files/{*path}", async (string pluginId, string path, PawsDbService db, FileStorageService storage) => {
     var config = db.GetRealmConfiguration();
     using var realm = Realms.Realm.GetInstance(config);
 
@@ -237,8 +239,8 @@ pluginsApi.MapGet("/{pluginId}/files/{*path}", (string pluginId, string path, Pa
 
     if (file == null) return Results.NotFound();
 
-    var blob = realm.Find<Paws.Host.Data.Schemas.FileBlob>(file.BlobHash);
-    if (blob == null) return Results.NotFound();
+    var fileData = await storage.RetrieveFileAsync(file.BlobHash);
+    if (fileData == null) return Results.NotFound();
 
     var ext = Path.GetExtension(targetPath).ToLowerInvariant().TrimStart('.');
     var contentType = ext switch
@@ -255,7 +257,7 @@ pluginsApi.MapGet("/{pluginId}/files/{*path}", (string pluginId, string path, Pa
         _ => "application/octet-stream"
     };
 
-    return Results.Bytes(blob.Data, contentType);
+    return Results.Bytes(fileData, contentType);
 });
 
 // Endpoint for the future plugin store feature

@@ -15,16 +15,18 @@ public class PluginManager
     private readonly IHostServices _hostServices;
     private readonly ILogger<PluginManager> _logger;
     private readonly PawsDbService _dbService;
+    private readonly FileStorageService _storage;
 
     // We store contexts to ensure they don't get collected while the plugin is running
     // Key: Plugin DB ID (string)
     private readonly Dictionary<string, AssemblyLoadContext> _pluginContexts = new();
 
-    public PluginManager(IHostServices hostServices, ILogger<PluginManager> logger, PawsDbService dbService)
+    public PluginManager(IHostServices hostServices, ILogger<PluginManager> logger, PawsDbService dbService, FileStorageService storage)
     {
         _hostServices = hostServices;
         _logger = logger;
         _dbService = dbService;
+        _storage = storage;
     }
 
     /// <summary>
@@ -116,7 +118,7 @@ public class PluginManager
             }
 
             // Create a custom load context for isolation and DB loading
-            var context = new DbPluginLoadContext(_dbService, plugin.Id);
+            var context = new DbPluginLoadContext(_dbService, _storage, _logger, plugin.Id);
 
             // Derive assembly name from EntryPoint (e.g. "MyPlugin.dll" -> "MyPlugin")
             var assemblyNameStr = Path.GetFileNameWithoutExtension(plugin.EntryPoint);
@@ -165,19 +167,33 @@ public class PluginManager
         var config = _dbService.GetRealmConfiguration();
         using var realm = Realms.Realm.GetInstance(config);
 
-        return realm.All<Plugin>().ToList().Select(p => new PluginManifest(
-            p.Id,
-            p.Name,
-            p.Version,
-            p.EntryPoint,
-            p.Author,
-            p.Description,
-            string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
-            p.Permissions.ToList(),
-            p.Provides.ToList(),
-            p.Consumes.ToList(),
-            p.IsActive
-        )).ToList();
+        return realm.All<Plugin>().ToList().Select(p => {
+             string? iconUrl = null;
+             if (!string.IsNullOrEmpty(p.Icon))
+             {
+                 // Resolve icon hash
+                 var iconFile = p.Files.FirstOrDefault(f => f.VirtualPath == p.Icon || f.VirtualPath == p.Icon.Replace("\\", "/"));
+                 if (iconFile != null)
+                 {
+                     iconUrl = $"/files/{iconFile.BlobHash}";
+                 }
+             }
+
+             return new PluginManifest(
+                p.Id,
+                p.Name,
+                p.Version,
+                p.EntryPoint,
+                p.Author,
+                p.Description,
+                string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
+                iconUrl, // Icon URL
+                p.Permissions.ToList(),
+                p.Provides.ToList(),
+                p.Consumes.ToList(),
+                p.IsActive
+            );
+        }).ToList();
     }
 
     /// <summary>Sets the active state of a plugin and loads/unloads it accordingly.</summary>
@@ -225,6 +241,7 @@ public record PluginManifest(
     string? Author,
     string? Description,
     PluginUiManifest? Ui,
+    string? Icon, // Added Icon URL
     List<string>? Permissions = null,
     List<string>? Provides = null,
     List<string>? Consumes = null,

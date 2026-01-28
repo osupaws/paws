@@ -12,6 +12,7 @@ export interface PluginManifest {
 	ui: {
 		entry: string;
 	} | null;
+	icon?: string;
 	isActive: boolean;
 }
 

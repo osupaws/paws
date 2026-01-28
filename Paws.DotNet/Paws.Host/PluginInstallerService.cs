@@ -10,49 +10,100 @@ public class PluginInstallerService
 {
     private readonly ILogger<PluginInstallerService> _logger;
     private readonly PawsDbService _dbService;
+    private readonly FileStorageService _storage;
 
-    public PluginInstallerService(ILogger<PluginInstallerService> logger, PawsDbService dbService)
+    public PluginInstallerService(ILogger<PluginInstallerService> logger, PawsDbService dbService, FileStorageService storage)
     {
         _logger = logger;
         _dbService = dbService;
+        _storage = storage;
     }
 
     public async Task<PluginManifest> InstallPluginAsync(string filePath)
     {
-        _logger.LogInformation("Starting installation of plugin from: {Path}", filePath);
+        _logger.LogInformation("1. Starting installation of plugin from: {Path}", filePath);
 
         if (!File.Exists(filePath))
+        {
+            _logger.LogError("File not found: {Path}", filePath);
             throw new FileNotFoundException("Plugin package not found", filePath);
-
-        // We support both .zip (as .pawsplugin) and directories (for dev)
-        // But the primary use case here is .pawsplugin (zip)
+        }
 
         using var tempDir = new TempDirectory();
         string sourceDir = tempDir.Path;
 
         if (Directory.Exists(filePath))
         {
-            // If it's a directory, just use it directly (or copy if we want strict isolation, but let's assume dev usage)
             sourceDir = filePath;
+            _logger.LogInformation("Installing from directory: {SourceDir}", sourceDir);
         }
         else
         {
-            // Assume Zip
-            ZipFile.ExtractToDirectory(filePath, tempDir.Path);
+            _logger.LogInformation("Extracting zip to: {TempDir}", tempDir.Path);
+            try
+            {
+                ZipFile.ExtractToDirectory(filePath, tempDir.Path);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to extract zip file: {Path}", filePath);
+                throw;
+            }
         }
 
         // 1. Read Manifest
         var manifestPath = Path.Combine(sourceDir, "plugin.json");
         if (!File.Exists(manifestPath))
+        {
+            _logger.LogError("plugin.json not found at: {ManifestPath}", manifestPath);
             throw new InvalidOperationException("plugin.json not found in package root.");
+        }
 
         var manifestJson = await File.ReadAllTextAsync(manifestPath);
-        var manifest = JsonSerializer.Deserialize<PluginManifest>(manifestJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        _logger.LogInformation("Read plugin.json ({Length} bytes)", manifestJson.Length);
+
+        PluginManifest? manifest;
+        try
+        {
+            manifest = JsonSerializer.Deserialize<PluginManifest>(manifestJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to deserialize plugin.json.");
+            throw;
+        }
 
         if (manifest == null || string.IsNullOrWhiteSpace(manifest.Id))
+        {
+            _logger.LogError("Manifest deserialization failed or ID is missing. JSON: {Json}", manifestJson);
             throw new InvalidOperationException("Invalid manifest: ID is missing.");
+        }
 
-        // 2. Prepare for DB Transaction
+        _logger.LogInformation("Parsed manifest for plugin: {Name} ({Id}) v{Version}", manifest.Name, manifest.Id, manifest.Version);
+
+        // 2. Pre-process Files (IO Bound)
+        // Store files and calculate hashes BEFORE opening the DB transaction.
+        // This avoids holding the write transaction open during IO operations.
+        var allFiles = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
+        _logger.LogInformation("Found {Count} files in package.", allFiles.Length);
+
+        var fileEntries = new List<(string RelativePath, string Hash)>();
+
+        foreach (var file in allFiles)
+        {
+            var relativePath = Path.GetRelativePath(sourceDir, file).Replace("\\", "/");
+            _logger.LogInformation("Processing file: {Path}", relativePath);
+
+            var bytes = await File.ReadAllBytesAsync(file);
+
+            // Store using FileStorageService (Centralized)
+            var hash = await _storage.StoreFileAsync(bytes);
+
+            fileEntries.Add((relativePath, hash));
+        }
+        _logger.LogInformation("All files stored on disk. Starting DB transaction to save metadata...");
+
+        // 3. Database Transaction (CPU/Memory Bound - Short lived)
         var config = _dbService.GetRealmConfiguration();
         using var realm = Realm.GetInstance(config);
 
@@ -62,13 +113,7 @@ public class PluginInstallerService
             var existing = realm.Find<Plugin>(manifest.Id);
             if (existing != null)
             {
-                // Cascade delete files logic if needed, but Realm usually handles object deletion ok.
-                // However, we manually created FileBlobs. We should check if we want to GC orphan blobs.
-                // For now, let's just delete the Plugin and PluginFile records. FileBlobs might be shared (deduplication),
-                // so we don't delete blobs implicitly unless we implement ref counting.
-                // Simpler approach for now: Overwrite.
-
-                // Explicitly remove associated PluginFiles to be clean
+                _logger.LogInformation("Removing existing version of plugin {Id}...", manifest.Id);
                 realm.RemoveRange(existing.Files);
                 realm.Remove(existing);
             }
@@ -83,17 +128,12 @@ public class PluginInstallerService
                 Author = manifest.Author ?? "",
                 EntryPoint = manifest.EntryPoint,
                 UiEntry = manifest.Ui?.Entry ?? "",
+                Icon = manifest.Icon, // Map Icon
                 IsActive = true
             };
 
             realm.Add(plugin);
 
-            // Populate lists (must be done after adding to Realm or on a managed object if we could init them, but for unmanaged objects with getter-only IList they are null)
-            // Actually, for unmanaged objects, we can't write to getter-only properties if they are null.
-            // But since we just added it to Realm, 'plugin' is now a managed object proxy, so Permissions is a valid Realm collection.
-
-            // Permissions, Provides, Consumes are IList<string> in Realm object, derived from schema.
-            // We just add to them.
             if (manifest.Permissions != null)
             {
                 foreach (var p in manifest.Permissions) plugin.Permissions.Add(p);
@@ -107,25 +147,9 @@ public class PluginInstallerService
                 foreach (var p in manifest.Consumes) plugin.Consumes.Add(p);
             }
 
-            // 3. Import Files
-            var allFiles = Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories);
-            foreach (var file in allFiles)
+            // 4. Link Files
+            foreach (var (relativePath, hash) in fileEntries)
             {
-                var relativePath = Path.GetRelativePath(sourceDir, file).Replace("\\", "/");
-
-                // Skip manifest itself if we don't need it at runtime, but keeping it is good practice.
-
-                var bytes = File.ReadAllBytes(file);
-                var hash = ComputeHash(bytes);
-
-                // Dedup: Check if blob exists
-                var blob = realm.Find<FileBlob>(hash);
-                if (blob == null)
-                {
-                    blob = new FileBlob { Hash = hash, Data = bytes };
-                    realm.Add(blob);
-                }
-
                 var pluginFile = new PluginFile
                 {
                     Id = $"{manifest.Id}|{relativePath}",
@@ -137,16 +161,10 @@ public class PluginInstallerService
             }
         });
 
-        _logger.LogInformation("Plugin {Name} ({Id}) installed successfully.", manifest.Name, manifest.Id);
+        _logger.LogInformation("Plugin {Name} ({Id}) installed successfully. Metadata saved.", manifest.Name, manifest.Id);
         return manifest;
     }
 
-    private static string ComputeHash(byte[] data)
-    {
-        using var sha = SHA256.Create();
-        var hashBytes = sha.ComputeHash(data);
-        return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
-    }
 
     // Helper for RAII temp dir
     private class TempDirectory : IDisposable

@@ -33,7 +33,7 @@ namespace Paws.Host
                     typeof(Plugin),
                     typeof(PluginFile)
                 },
-                SchemaVersion = 4,
+                SchemaVersion = 6,
             };
         }
 

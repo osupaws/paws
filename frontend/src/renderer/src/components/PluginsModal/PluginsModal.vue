@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { PawsCard, PawsCheckbox, PawsHeading, PawsSpoilerCard, PluginIcon } from "@osupaws/paws-ui";
+import { CloseIcon, PawsCheckbox, PawsHeading, PawsSpoilerCard } from "@osupaws/paws-ui";
 import { closePlugins, modalState } from "@renderer/state/modal.state";
 import { fetchAllPlugins, pluginState, togglePluginActive } from "@renderer/state/plugin.state";
-import { onMounted } from "vue";
+import { onMounted, reactive, watch } from "vue";
 
 onMounted(() => {
 	fetchAllPlugins();
@@ -11,6 +11,42 @@ onMounted(() => {
 const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 	await togglePluginActive(id, isActive);
 };
+
+// Map of pluginId -> SVG content string
+const iconContent = reactive<Record<string, string>>({});
+
+const loadPluginIcons = async (): Promise<void> => {
+	for (const plugin of pluginState.allInstalledPlugins) {
+		if (plugin.icon) {
+			try {
+				// If it's a backend file path
+				const match = plugin.icon.match(/\/files\/([a-zA-Z0-9]+)/);
+				if (match && match[1]) {
+					const url = `paws-theme://${match[1]}`;
+					const response = await fetch(url);
+					if (response.ok) {
+						const text = await response.text();
+						// Simple check to ensure it's SVG
+						if (text.includes("<svg")) {
+							iconContent[plugin.id] = text;
+						}
+					}
+				}
+			} catch (e) {
+				console.error(`Failed to load icon for ${plugin.name}`, e);
+			}
+		}
+	}
+};
+
+// Watch for changes in plugin list to load icons
+watch(
+	() => pluginState.allInstalledPlugins,
+	() => {
+		loadPluginIcons();
+	},
+	{ immediate: true }
+);
 </script>
 
 <template>
@@ -21,76 +57,69 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 					<div class="plugins-container">
 						<div class="header-row">
 							<PawsHeading size="lg" font-weight="medium" align="left">plugins</PawsHeading>
-							<button class="close-button" @click="closePlugins">✕</button>
+							<button class="close-button" @click="closePlugins">
+								<CloseIcon />
+							</button>
 						</div>
 
 						<div class="cards-container">
-							<!-- Installed Section -->
-							<PawsCard class="plugins-section">
-								<template #heading>
-									<PawsHeading size="sm" font-weight="medium" align="left">installed</PawsHeading>
-								</template>
-
-								<div class="plugins-list">
-									<PawsSpoilerCard
-										v-for="plugin in pluginState.allInstalledPlugins"
-										:key="plugin.id"
-									>
-										<template #header>
-											<div class="plugin-header-content">
-												<div class="header-left">
-													<PawsCheckbox
-														:model-value="plugin.isActive"
-														label="enable"
-														@update:model-value="val => handleToggle(plugin.id, val)"
-													/>
-												</div>
-												<div class="header-center">
-													<div class="title-group">
-														<PluginIcon class="plugin-type-icon" />
-														<span class="plugin-name">{{ plugin.name }}</span>
-													</div>
-												</div>
+							<div class="plugins-list">
+								<PawsSpoilerCard v-for="plugin in pluginState.allInstalledPlugins" :key="plugin.id">
+									<template #header>
+										<div class="plugin-header-content">
+											<div class="header-left">
+												<PawsCheckbox
+													:model-value="plugin.isActive"
+													label="enable"
+													@update:model-value="val => handleToggle(plugin.id, val)"
+												/>
 											</div>
-										</template>
-
-										<div class="plugin-details">
-											<div class="detail-section">
-												<span class="detail-label">description</span>
-												<p class="detail-text">
-													{{ plugin.description || "no description provided" }}
-												</p>
-											</div>
-
-											<div class="detail-section">
-												<span class="detail-label">details</span>
-												<div class="meta-info">
-													<div v-if="plugin.permissions?.length" class="meta-row">
-														<span class="meta-label">permissions:</span>
-														<span class="meta-values">{{ plugin.permissions.join(", ") }}</span>
-													</div>
-													<div v-if="plugin.provides?.length" class="meta-row">
-														<span class="meta-label">provides:</span>
-														<span class="meta-values">{{ plugin.provides.join(", ") }}</span>
-													</div>
-													<div v-if="plugin.consumes?.length" class="meta-row">
-														<span class="meta-label">consumes:</span>
-														<span class="meta-values">{{ plugin.consumes.join(", ") }}</span>
-													</div>
+											<div class="header-center">
+												<div class="title-group">
+													<!-- eslint-disable-next-line vue/no-v-html -->
+													<div
+														v-if="iconContent[plugin.id]"
+														class="plugin-icon"
+														v-html="iconContent[plugin.id]"
+													></div>
+													<span class="plugin-name">{{ plugin.name }}</span>
 												</div>
 											</div>
 										</div>
-									</PawsSpoilerCard>
-								</div>
-							</PawsCard>
+									</template>
 
-							<!-- Available Section -->
-							<PawsCard class="plugins-section">
-								<template #heading>
-									<PawsHeading size="sm" font-weight="medium" align="left">available</PawsHeading>
-								</template>
-								<div class="empty-state">more plugins coming soon...</div>
-							</PawsCard>
+									<div class="plugin-details">
+										<div class="detail-section">
+											<span class="detail-label">description</span>
+											<p class="detail-text">
+												{{ plugin.description || "no description provided" }}
+											</p>
+										</div>
+
+										<div class="detail-section">
+											<span class="detail-label">details</span>
+											<div class="meta-info">
+												<div v-if="plugin.permissions?.length" class="meta-row">
+													<span class="meta-label">permissions:</span>
+													<span class="meta-values">{{ plugin.permissions.join(", ") }}</span>
+												</div>
+												<div v-if="plugin.provides?.length" class="meta-row">
+													<span class="meta-label">provides:</span>
+													<span class="meta-values">{{ plugin.provides.join(", ") }}</span>
+												</div>
+												<div v-if="plugin.consumes?.length" class="meta-row">
+													<span class="meta-label">consumes:</span>
+													<span class="meta-values">{{ plugin.consumes.join(", ") }}</span>
+												</div>
+											</div>
+										</div>
+									</div>
+								</PawsSpoilerCard>
+
+								<div v-if="pluginState.allInstalledPlugins.length === 0" class="empty-state">
+									no plugins installed yet
+								</div>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -159,16 +188,17 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	min-height: 48px;
+	height: 32px;
 }
 
 .close-button {
 	background: none;
 	border: none;
 	color: var(--paws-color-text-secondary);
-	font-size: 20px;
+	width: 32px;
+	height: 32px;
 	cursor: pointer;
-	padding: 4px;
+	padding: 0;
 	border-radius: 6px;
 	transition: all 0.2s;
 	display: flex;
@@ -182,7 +212,7 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 }
 
 .cards-container {
-	margin-top: 10px;
+	margin-top: 12px;
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
@@ -243,15 +273,21 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 	pointer-events: auto;
 }
 
-.plugin-type-icon {
-	width: 16px;
-	height: 16px;
-	color: var(--paws-color-text-secondary);
+.plugin-icon {
+	width: 24px;
+	height: 24px;
+	background-color: var(--paws-color-text-primary);
+	mask-size: contain;
+	-webkit-mask-size: contain;
+	mask-repeat: no-repeat;
+	-webkit-mask-repeat: no-repeat;
+	mask-position: center;
+	-webkit-mask-position: center;
 }
 
 .plugin-name {
-	font-size: 14px;
-	font-weight: 500;
+	font-size: 16px;
+	font-weight: var(--paws-font-weight-medium);
 	color: var(--paws-color-text-primary);
 }
 
@@ -259,24 +295,25 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 	padding: 12px 0;
 	display: flex;
 	flex-direction: column;
-	gap: 12px;
+	gap: 8px; /* Расстояние между description и details блоками 8px */
 }
 
 .detail-section {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 2px; /* Расстояние между заголовком и контентом 2px */
 }
 
 .detail-label {
-	font-size: 12px;
-	font-weight: 500;
+	font-size: 16px; /* Размер шрифта заголовка 16px */
+	font-weight: var(--paws-font-weight-medium); /* Вес заголовка medium */
 	color: var(--paws-color-text-secondary);
 	opacity: 0.7;
 }
 
 .detail-text {
-	font-size: 13px;
+	font-size: 14px; /* Размер контента 14px */
+	font-weight: var(--paws-font-weight-light); /* Вес контента light */
 	color: var(--paws-color-text-primary);
 	margin: 0;
 	line-height: 1.4;
@@ -285,13 +322,14 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 .meta-info {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 2px;
 }
 
 .meta-row {
 	display: flex;
 	gap: 6px;
-	font-size: 12px;
+	font-size: 14px; /* Контент мета-инфо тоже 14px */
+	font-weight: var(--paws-font-weight-light); /* Вес light */
 }
 
 .meta-label {

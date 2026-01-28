@@ -42,6 +42,41 @@ ipcMain.handle("api-post", (_event, { endpoint, body }): Promise<any> => {
 	});
 });
 
+// Register schemes as privileged to allow fetch API, service workers, and bypass CSP for local resources if needed.
+// This MUST be called before app.ready
+protocol.registerSchemesAsPrivileged([
+	{
+		scheme: "paws-app",
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true, // Critical for fetch("paws-app://...")
+			bypassCSP: false,
+			corsEnabled: true
+		}
+	},
+	{
+		scheme: "paws-theme",
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true, // Critical for fetch("paws-theme://...")
+			bypassCSP: false,
+			corsEnabled: true
+		}
+	},
+	{
+		scheme: "paws-plugin",
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true, // Critical for fetch("paws-plugin://...")
+			bypassCSP: false,
+			corsEnabled: true
+		}
+	}
+]);
+
 app.whenReady().then(async () => {
 	electronApp.setAppUserModelId("org.paws.Paws");
 

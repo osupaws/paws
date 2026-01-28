@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+	CloseIcon,
 	FolderIcon,
 	PawsCard,
 	PawsCheckbox,
@@ -92,7 +93,9 @@ const handleThemeChange = (newThemeId: string): void => {
 					<div class="settings-container">
 						<div class="header-row">
 							<PawsHeading size="lg" font-weight="medium" align="left">settings</PawsHeading>
-							<button class="close-button" @click="closeSettings">✕</button>
+							<button class="close-button" @click="closeSettings">
+								<CloseIcon />
+							</button>
 						</div>
 
 						<div class="cards-container">
@@ -250,23 +253,22 @@ const handleThemeChange = (newThemeId: string): void => {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	/* No bottom border or explicit padding here, parent padding handles layout */
-	min-height: 48px; /* Ensure sufficient height for alignment */
+	height: 32px;
 }
 
 .close-button {
 	background: none;
 	border: none;
 	color: var(--paws-color-text-secondary);
-	font-size: 20px;
+	width: 32px;
+	height: 32px;
 	cursor: pointer;
-	padding: 4px;
+	padding: 0;
 	border-radius: 6px;
 	transition: all 0.2s;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	/* Optional: Align close button nicely with the large heading */
 }
 
 .close-button:hover {
@@ -275,7 +277,7 @@ const handleThemeChange = (newThemeId: string): void => {
 }
 
 .cards-container {
-	margin-top: 10px;
+	margin-top: 12px;
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
