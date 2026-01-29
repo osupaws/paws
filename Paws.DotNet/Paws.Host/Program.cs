@@ -33,6 +33,7 @@ builder.Services.AddSingleton<LazerDbService>(sp =>
 builder.Services.AddSingleton<ThemeImporterService>(); // For importing themes
 builder.Services.AddSingleton<PluginRepositoryService>(); // For the plugin store
 builder.Services.AddSingleton<PluginManager>();
+builder.Services.AddSingleton<PluginInstallerService>();
 builder.Services.AddSingleton<IHostServices, HostServices>();
 builder.Services.AddHttpClient(); // For PluginRepositoryService
 
@@ -54,9 +55,7 @@ catch (Exception ex)
 
 // --- Plugin Loading ---
 var pluginManager = app.Services.GetRequiredService<PluginManager>();
-pluginManager.DiscoverAndLoadPlugins(Enumerable.Empty<string>()); // Step 1: Discover all plugins.
-var discoveredIds = pluginManager.GetDiscoveredPlugins().Select(p => p.Id).ToList();
-pluginManager.DiscoverAndLoadPlugins(discoveredIds); // Step 2: Load all discovered plugins.
+pluginManager.DiscoverAndLoadPlugins(); // Loads all active plugins from DB
 logger.LogInformation("Paws.Host C# Backend started successfully.");
 
 // --- API Endpoints ---
@@ -159,17 +158,50 @@ settingsApi.MapPost("", ([FromBody] UpdateSettingRequest req, PawsDbService db) 
 // --- Plugin Management Endpoints ---
 var pluginsApi = api.MapGroup("/plugins");
 
+pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, PluginInstallerService installer, PluginManager pm, ILogger<Program> logger) => {
+    try
+    {
+        var manifest = await installer.InstallPluginAsync(req.FilePath);
+
+        // Reload plugins to pick up the new one (hot reload)
+        pm.ReloadPlugin(manifest.Id);
+
+        return Results.Ok(manifest);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Plugin installation failed for file: {FilePath}", req.FilePath);
+        return Results.Problem(ex.Message);
+    }
+});
+
+pluginsApi.MapPost("/toggle-active", ([FromBody] TogglePluginRequest req, PluginManager pm) =>
+{
+    pm.SetPluginActive(req.Id, req.IsActive);
+    return Results.Ok();
+});
+
 pluginsApi.MapGet("/loaded", (PluginManager pm) => {
     // Return a DTO (Data Transfer Object) to control the data shape.
     var result = pm.GetLoadedPlugins().Select(p => {
-        var manifest = pm.GetDiscoveredPlugins().FirstOrDefault(m => m.Id.Equals(p.Id.ToString(), StringComparison.OrdinalIgnoreCase));
-        return new { p.Id, p.Name, p.Version, p.Description, Ui = manifest?.Ui };
+        var manifest = pm.GetAllPlugins().FirstOrDefault(m => m.Id.Equals(p.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+        return new
+        {
+            p.Id,
+            p.Name,
+            p.Version,
+            p.Description,
+            manifest?.Author,
+            manifest?.Permissions,
+            manifest?.Provides,
+            manifest?.Consumes,
+            Ui = manifest?.Ui
+        };
     });
     return Results.Ok(result);
 });
 
-pluginsApi.MapGet("/discovered", (PluginManager pm) => Results.Ok(pm.GetDiscoveredPlugins()));
-pluginsApi.MapGet("/pending", (PluginManager pm) => Results.Ok(pm.GetPendingPlugins()));
+pluginsApi.MapGet("/discovered", (PluginManager pm) => Results.Ok(pm.GetAllPlugins()));
 
 pluginsApi.MapPost("/execute/{pluginId}", async (Guid pluginId, [FromBody] ExecuteCommandRequest req, PluginManager pm) => {
     var plugin = pm.GetPluginById(pluginId);
@@ -187,6 +219,46 @@ pluginsApi.MapPost("/execute/{pluginId}", async (Guid pluginId, [FromBody] Execu
     }
 });
 
+// Serve plugin UI files (e.g. for paws-plugin protocol)
+// Serve plugin UI files (e.g. for paws-plugin protocol)
+pluginsApi.MapGet("/{pluginId}/files/{*path}", async (string pluginId, string path, PawsDbService db, FileStorageService storage) => {
+    var config = db.GetRealmConfiguration();
+    using var realm = Realms.Realm.GetInstance(config);
+
+    var plugin = realm.Find<Paws.Host.Data.Schemas.Plugin>(pluginId);
+    if (plugin == null) return Results.NotFound();
+
+    // Mapping strategy: The Paws UI protocol serves from the 'ui' folder by default.
+    // We try to find 'ui/{path}' first, then '{path}'.
+    // Using simple linear search for now as file counts per plugin are small.
+    var targetPath = path.Replace("\\", "/");
+
+    var file = plugin.Files.FirstOrDefault(f => f.VirtualPath.Equals($"ui/{targetPath}", StringComparison.OrdinalIgnoreCase))
+            ?? plugin.Files.FirstOrDefault(f => f.VirtualPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase));
+
+    if (file == null) return Results.NotFound();
+
+    var fileData = await storage.RetrieveFileAsync(file.BlobHash);
+    if (fileData == null) return Results.NotFound();
+
+    var ext = Path.GetExtension(targetPath).ToLowerInvariant().TrimStart('.');
+    var contentType = ext switch
+    {
+        "html" => "text/html",
+        "css" => "text/css",
+        "js" => "application/javascript",
+        "json" => "application/json",
+        "png" => "image/png",
+        "jpg" => "image/jpeg",
+        "jpeg" => "image/jpeg",
+        "svg" => "image/svg+xml",
+        "woff2" => "font/woff2",
+        _ => "application/octet-stream"
+    };
+
+    return Results.Bytes(fileData, contentType);
+});
+
 // Endpoint for the future plugin store feature
 pluginsApi.MapGet("/store", async (PluginRepositoryService repoService) => {
     var availablePlugins = await repoService.GetAvailablePluginsAsync();
@@ -201,3 +273,5 @@ public record ImportThemeRequest(string FilePath);
 public record ExecuteCommandRequest(string CommandName, object? Payload);
 public record UpdateConfigRequest(bool? IsLegacyMode, string? StablePath, string? LazerPath);
 public record UpdateSettingRequest(string Key, string Value, string Type = "string");
+public record InstallPluginRequest(string FilePath);
+public record TogglePluginRequest(string Id, bool IsActive);

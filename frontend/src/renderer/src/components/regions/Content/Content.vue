@@ -17,12 +17,32 @@ const handleImportTheme = async (): Promise<void> => {
 	}
 };
 
+const handleInstallPlugin = async (): Promise<void> => {
+	const result = await window.api.electron.showOpenDialog({
+		properties: ["openFile"],
+		filters: [{ name: "Paws Plugins", extensions: ["pawsplugin", "zip"] }]
+	});
+
+	if (result && result.filePaths.length > 0) {
+		const filePath = result.filePaths[0];
+		try {
+			await window.api.backend.post("/api/plugins/install", { filePath });
+			await fetchPlugins();
+		} catch (e) {
+			console.error("Plugin install failed", e);
+		}
+	}
+};
+
 const toggleTheme = (): void => {
 	const currentIndex = themeState.availableThemes.findIndex(t => t.id === themeState.activeThemeId);
 	const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
 	themeState.activeThemeId = themeState.availableThemes[nextIndex].id;
 	// Persist changes
-	window.api.store.set("activeThemeId", themeState.activeThemeId);
+	window.api.backend.post("/api/settings", {
+		key: "activeThemeId",
+		value: themeState.activeThemeId
+	});
 };
 
 const toggleMode = (): void => {
@@ -167,6 +187,7 @@ onUnmounted(() => {
 				<span>(or press the buttons below)</span>
 				<div class="actions-column">
 					<button class="action-btn" @click="handleImportTheme">Import Theme (Debug)</button>
+					<button class="action-btn" @click="handleInstallPlugin">Install Plugin (Debug)</button>
 					<button class="action-btn" @click="toggleTheme">
 						Switch Theme: {{ themeState.activeThemeId }}
 					</button>

@@ -8,7 +8,7 @@ import {
 	SettingsIcon
 } from "@osupaws/paws-ui";
 import { closeMenu, menuState } from "@renderer/state/menu.state";
-import { openSettings } from "@renderer/state/modal.state";
+import { openPlugins, openSettings } from "@renderer/state/modal.state";
 import { pluginState, setActivePlugin } from "@renderer/state/plugin.state";
 import { setThemeBase, themeState } from "@renderer/state/theme.state";
 import { computed } from "vue";
@@ -33,6 +33,11 @@ const themeModel = computed({
 
 const handleOpenSettings = (): void => {
 	openSettings();
+	closeMenu();
+};
+
+const handleOpenPlugins = (): void => {
+	openPlugins();
 	closeMenu();
 };
 </script>
@@ -71,7 +76,7 @@ const handleOpenSettings = (): void => {
 						:class="styles.footerButton"
 						label="Plugins"
 						tooltip="Plugins"
-						@click="() => {}"
+						@click="handleOpenPlugins"
 					>
 						<template #icon>
 							<PluginIcon />

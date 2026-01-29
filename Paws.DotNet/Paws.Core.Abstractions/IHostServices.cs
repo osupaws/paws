@@ -17,7 +17,14 @@ public interface IHostServices
     void LogMessage(string message, PawsLogLvl level = PawsLogLvl.Information, string? pluginName = null);
 
     /// <summary>
-    /// Gets a read-only, dynamic Realm instance for the configured osu!lazer database.
+    /// Gets a disposable context for accessing osu!lazer data in a decoupled, strongly-typed manner.
+    /// The returned context owns the Realm instance connection, so you MUST dispose it (using statement).
+    /// </summary>
+    /// <returns>A LazerContext, or null if database is inaccessible.</returns>
+    LazerContext? GetLazerContext();
+
+    /// <summary>
+    /// Gets a read-only, dynamic Realm instance for the osu!lazer database.
     /// The connection is managed by the host. The plugin should use and dispose of this instance promptly.
     /// Returns null if the path to lazer is not set or the database is inaccessible.
     /// </summary>
@@ -47,7 +54,7 @@ public interface IHostServices
     /// </summary>
     /// <returns>A parsed ScoresDatabase object (from OsuParsers), or null if not found/parsable.</returns>
     Task<object?> GetStableScoresDbAsync();
-    
+
     /// <summary>
     /// Safely performs an action that may modify osu!stable files.
     /// This method guarantees that the osu!stable process is not running before executing the action.

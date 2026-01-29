@@ -1,7 +1,8 @@
 import { reactive } from "vue";
 
 export const modalState = reactive({
-	isSettingsOpen: false
+	isSettingsOpen: false,
+	isPluginsOpen: false
 });
 
 export function openSettings(): void {
@@ -14,4 +15,16 @@ export function closeSettings(): void {
 
 export function toggleSettings(): void {
 	modalState.isSettingsOpen = !modalState.isSettingsOpen;
+}
+
+export function openPlugins(): void {
+	modalState.isPluginsOpen = true;
+}
+
+export function closePlugins(): void {
+	modalState.isPluginsOpen = false;
+}
+
+export function togglePlugins(): void {
+	modalState.isPluginsOpen = !modalState.isPluginsOpen;
 }

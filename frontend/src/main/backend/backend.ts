@@ -1,6 +1,5 @@
 import { is } from "@electron-toolkit/utils";
 import { appState } from "@main/state/app.state";
-import { store } from "@main/store/store";
 import { splashSendStatusUpdate } from "@main/windows/splash/splash.web-contents";
 import { spawn } from "child_process";
 import { app, dialog } from "electron";
@@ -38,8 +37,8 @@ export const startBackend = (): void => {
 		return;
 	}
 
-	const approvedPlugins = store.get("approvedPlugins");
-	const args = [JSON.stringify(approvedPlugins)];
+	// Args are no longer used for configuration; Backend uses its own DB
+	const args = [];
 
 	try {
 		const backendProcess = spawn(backendExecutable, args);

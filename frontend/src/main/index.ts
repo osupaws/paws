@@ -8,12 +8,14 @@ import { createMainWindow } from "@main/windows/main/main.window";
 import { createSplashWindow } from "@main/windows/splash/splash.window";
 import { app, BrowserWindow, ipcMain, net, protocol } from "electron";
 import log from "electron-log";
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "fs";
-import { dirname, join, normalize } from "path";
+import { existsSync } from "fs";
+import { join, normalize } from "path";
 
 // Linter Fix: Add async return type Promise<any>
+const BACKEND_PORT = 5088;
+
 async function forwardRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-	const baseUrl = "http://localhost:5088";
+	const baseUrl = `http://localhost:${BACKEND_PORT}`;
 	try {
 		const response = await net.fetch(`${baseUrl}${endpoint}`, options);
 		if (!response.ok) {
@@ -42,64 +44,72 @@ ipcMain.handle("api-post", (_event, { endpoint, body }): Promise<any> => {
 	});
 });
 
+// Register schemes as privileged to allow fetch API, service workers, and bypass CSP for local resources if needed.
+// This MUST be called before app.ready
+protocol.registerSchemesAsPrivileged([
+	{
+		scheme: "paws-app",
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true, // Critical for fetch("paws-app://...")
+			bypassCSP: false,
+			corsEnabled: true
+		}
+	},
+	{
+		scheme: "paws-theme",
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true, // Critical for fetch("paws-theme://...")
+			bypassCSP: false,
+			corsEnabled: true
+		}
+	},
+	{
+		scheme: "paws-plugin",
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true, // Critical for fetch("paws-plugin://...")
+			bypassCSP: false,
+			corsEnabled: true
+		}
+	}
+]);
+
 app.whenReady().then(async () => {
 	electronApp.setAppUserModelId("org.paws.Paws");
 
-	const pluginsBaseDir = is.dev
-		? join(
-				__dirname,
-				"..",
-				"..",
-				"..",
-				"Paws.DotNet",
-				"Paws.Host",
-				"bin",
-				"Debug",
-				"net8.0",
-				"plugins"
-			)
-		: join(dirname(app.getPath("exe")), "resources", "plugins");
-
-	if (!existsSync(pluginsBaseDir)) {
-		mkdirSync(pluginsBaseDir, { recursive: true });
-	}
-
-	const pluginGuidToFolderMap = new Map<string, string>();
-
-	try {
-		const pluginFolders = readdirSync(pluginsBaseDir, { withFileTypes: true })
-			.filter(dirent => dirent.isDirectory())
-			.map(dirent => dirent.name);
-
-		for (const folderName of pluginFolders) {
-			const manifestPath = join(pluginsBaseDir, folderName, "plugin.json");
-			if (existsSync(manifestPath)) {
-				const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
-				if (manifest.id) {
-					pluginGuidToFolderMap.set(manifest.id.toLowerCase(), folderName);
-				}
-			}
-		}
-	} catch (e) {
-		log.error("Failed to build plugin folder map:", e);
-	}
-
+	// --- PAWS App Protocol (System Files) ---
+	// This protocol serves non-plugin, built-in application assets.
 	// --- PAWS App Protocol (System Files) ---
 	// This protocol serves non-plugin, built-in application assets.
 	protocol.handle("paws-app", request => {
 		try {
 			const url = new URL(request.url);
-			const assetPath = `${url.hostname}${url.pathname}`;
+
+            // Handle hostname as part of the path (e.g. paws-app://file.js -> hostname=file.js)
+            let relativePath = url.hostname;
+            if (url.pathname && url.pathname !== "/") {
+                relativePath = join(relativePath, url.pathname);
+            }
+
+            // Remove trailing separator if present (browser adds trailing slash to hostname-only URLs)
+            if (relativePath.endsWith("/") || relativePath.endsWith("\\")) {
+                relativePath = relativePath.slice(0, -1);
+            }
 
 			const publicRoot = is.dev
 				? join(__dirname, "..", "..", "public") // Dev: serve from source public folder
 				: join(__dirname, "..", "renderer"); // Prod: serve from built renderer folder
 
-			const absolutePath = join(publicRoot, assetPath);
+			const absolutePath = join(publicRoot, relativePath);
 
 			// Explicitly check file existence
 			if (!existsSync(absolutePath)) {
-				log.warn(`File not found for paws-app: ${absolutePath}`);
+				log.warn(`File not found for paws-app: ${absolutePath} (Request: ${request.url})`);
 				return new Response("Not Found", { status: 404 });
 			}
 
@@ -111,7 +121,8 @@ app.whenReady().then(async () => {
 				return new Response("Forbidden", { status: 403 });
 			}
 
-			return net.fetch(encodeURI(`file://${absolutePath.replace(/\\/g, "/")}`));
+            const fileUrl = require("url").pathToFileURL(absolutePath).toString();
+			return net.fetch(fileUrl);
 		} catch (error) {
 			log.error(`Error in 'paws-app' protocol for ${request.url}: ${error}`);
 			return new Response("Internal Server Error", { status: 500 });
@@ -131,7 +142,7 @@ app.whenReady().then(async () => {
 			}
 
 			const fileUrl = `http://localhost:5088/api/files/${hash}`;
-			log.info(`Forwarding paws-theme request to: ${fileUrl}`);
+			// log.info(`Forwarding paws-theme request to: ${fileUrl}`);
 
 			// Forward the request to the C# backend's file serving endpoint
 			return net.fetch(fileUrl);
@@ -142,48 +153,26 @@ app.whenReady().then(async () => {
 	});
 
 	// --- PAWS Plugin Protocol ---
-	// This protocol is used to serve the UI of a loaded plugin.
+	// This protocol is used to serve the UI of a loaded plugin from the database.
 	protocol.handle("paws-plugin", request => {
 		try {
 			const url = new URL(request.url);
-			const pluginId = url.hostname.toLowerCase();
-			const folderName = pluginGuidToFolderMap.get(pluginId);
+			const pluginId = url.hostname;
+			// pathname includes leading slash, e.g. /index.html
+			const filePath = url.pathname;
 
-			if (!folderName) {
-				log.error(`Protocol Error: Could not find a folder for plugin GUID ${pluginId}.`);
-				return new Response(null, { status: 404 });
+			if (!pluginId) {
+				log.error("`paws-plugin` protocol error: No pluginId provided.");
+				return new Response("Bad Request", { status: 400 });
 			}
 
-			const pluginRoot = join(pluginsBaseDir, folderName);
-			const asarPath = join(pluginRoot, "ui.asar");
-			const directoryPath = join(pluginRoot, "ui");
+			// Construct API URL: http://localhost:5088/api/plugins/{id}/files/{path}
+			const apiUrl = `http://localhost:5088/api/plugins/${pluginId}/files${filePath}`;
 
-			let basePath: string;
-			if (existsSync(asarPath)) {
-				basePath = asarPath;
-			} else if (existsSync(directoryPath)) {
-				basePath = directoryPath;
-			} else {
-				log.error(
-					`UI source not found for plugin ${pluginId}. Looked for ui.asar and ui/ directory.`
-				);
-				return new Response(null, { status: 404 });
-			}
-
-			const requestedPath = decodeURIComponent(url.pathname).substring(1);
-			const absolutePath = join(basePath, requestedPath);
-
-			if (!normalize(absolutePath).startsWith(normalize(basePath))) {
-				log.error(
-					`Security violation: Attempt to access file outside of allowed directory. Request: ${request.url}`
-				);
-				return new Response(null, { status: 403 });
-			}
-
-			return net.fetch(encodeURI(`file://${absolutePath.replace(/\\/g, "/")}`));
+			return net.fetch(apiUrl);
 		} catch (error) {
-			log.error(`Error in custom protocol handler for ${request.url}: ${error}`);
-			return new Response(null, { status: 500 });
+			log.error(`Error in 'paws-plugin' customized protocol handler for ${request.url}: ${error}`);
+			return new Response("Internal Server Error", { status: 500 });
 		}
 	});
 

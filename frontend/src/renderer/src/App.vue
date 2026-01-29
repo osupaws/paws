@@ -2,6 +2,7 @@
 import { PawsTooltip } from "@osupaws/paws-ui";
 import Layout from "@renderer/components/Layout/Layout.vue";
 import { getActiveThemeInfo, themeState } from "@renderer/state/theme.state";
+import { updateThemeLinks } from "@renderer/utils/theme-manager";
 import { watch } from "vue";
 // This watcher handles all side effects of a theme change.
 watch(
@@ -10,30 +11,13 @@ watch(
 		if (!newThemeId) return;
 
 		// 1. Save to store
-		window.api.store.set("activeThemeId", newThemeId);
+		window.api.backend.post("/api/settings", { key: "activeThemeId", value: newThemeId });
 
 		// 2. Update the stylesheet <link>s in the DOM
 		const themeInfo = getActiveThemeInfo();
-		// Base theme ID will now be like 'paws-dark', so 'dark' will be 'themeInfo.base'
-		const baseThemeId = `paws-${themeInfo.base}`;
-		const baseThemeInfo = themeState.availableThemes.find(t => t.id === baseThemeId);
+		const customHash = themeInfo.isCustom && themeInfo.file ? themeInfo.file.hash : undefined;
 
-		const baseLink = document.getElementById("app-theme-base-link") as HTMLLinkElement;
-		const customLink = document.getElementById("app-theme-custom-link") as HTMLLinkElement;
-
-		if (baseLink && baseThemeInfo) {
-			// Core themes are always served from the app's internal assets
-			// The file path is hardcoded in `theme.state.ts`
-			baseLink.href = `paws-app://themes/${themeInfo.base}.css`;
-		}
-
-		if (customLink && themeInfo.isCustom && themeInfo.file) {
-			// Custom themes are served by hash via the C# backend
-			customLink.href = `paws-theme://${themeInfo.file.hash}`;
-		} else {
-			// It's a core theme, so no custom styles are needed
-			customLink.href = "";
-		}
+		updateThemeLinks(themeInfo.base, customHash);
 	},
 	{ immediate: true }
 );

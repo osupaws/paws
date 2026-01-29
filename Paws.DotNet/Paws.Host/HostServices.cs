@@ -31,7 +31,14 @@ public class HostServices : IHostServices
     }
 
     /// <inheritdoc/>
-    public dynamic? GetLazerDatabase() => _lazerDbService.GetInstance();
+    public LazerContext? GetLazerContext()
+    {
+        var realm = _lazerDbService.GetSafeReadInstance();
+        return realm != null ? new LazerContext(realm) : null;
+    }
+
+    /// <inheritdoc/>
+    public dynamic? GetLazerDatabase() => _lazerDbService.GetSafeReadInstance();
 
     /// <inheritdoc/>
     public Task PerformLazerWriteAsync(Action<Realm> action)
@@ -67,11 +74,11 @@ public class HostServices : IHostServices
             var stablePath = _stableDbService.GetStableRootPath();
             if (string.IsNullOrEmpty(stablePath))
                 throw new InvalidOperationException("osu!stable path is not set.");
-            
+
             // 2. Safety Check for Running Process
             if (Process.GetProcessesByName("osu!").Any())
                 throw new StableIsRunningException();
-            
+
             // 3. Execute the plugin's code, passing the validated path.
             action(stablePath);
         });
