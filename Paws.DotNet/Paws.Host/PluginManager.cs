@@ -168,17 +168,6 @@ public class PluginManager
         using var realm = Realms.Realm.GetInstance(config);
 
         return realm.All<Plugin>().ToList().Select(p => {
-             string? iconUrl = null;
-             if (!string.IsNullOrEmpty(p.Icon))
-             {
-                 // Resolve icon hash
-                 var iconFile = p.Files.FirstOrDefault(f => f.VirtualPath == p.Icon || f.VirtualPath == p.Icon.Replace("\\", "/"));
-                 if (iconFile != null)
-                 {
-                     iconUrl = $"/files/{iconFile.BlobHash}";
-                 }
-             }
-
              return new PluginManifest(
                 p.Id,
                 p.Name,
@@ -187,7 +176,7 @@ public class PluginManager
                 p.Author,
                 p.Description,
                 string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
-                iconUrl, // Icon URL
+                p.IconData, // Pass raw SVG (or null) directly
                 p.Permissions.ToList(),
                 p.Provides.ToList(),
                 p.Consumes.ToList(),

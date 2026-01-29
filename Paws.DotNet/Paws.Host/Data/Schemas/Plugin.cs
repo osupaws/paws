@@ -13,6 +13,7 @@ namespace Paws.Host.Data.Schemas
         public string Version { get; set; } = "";
         public string Author { get; set; } = "";
         public string? Icon { get; set; } // Relative path to the icon file in the package
+        public string? IconData { get; set; } // Raw SVG content (if applicable)
 
         // Minimum required version of the host application
         public string MinAppVersion { get; set; } = "1.0.0";

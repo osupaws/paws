@@ -2,7 +2,7 @@
 import { CloseIcon, PawsCheckbox, PawsHeading, PawsSpoilerCard } from "@osupaws/paws-ui";
 import { closePlugins, modalState } from "@renderer/state/modal.state";
 import { fetchAllPlugins, pluginState, togglePluginActive } from "@renderer/state/plugin.state";
-import { onMounted, reactive, watch } from "vue";
+import { onMounted } from "vue";
 
 onMounted(() => {
 	fetchAllPlugins();
@@ -11,42 +11,6 @@ onMounted(() => {
 const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 	await togglePluginActive(id, isActive);
 };
-
-// Map of pluginId -> SVG content string
-const iconContent = reactive<Record<string, string>>({});
-
-const loadPluginIcons = async (): Promise<void> => {
-	for (const plugin of pluginState.allInstalledPlugins) {
-		if (plugin.icon) {
-			try {
-				// If it's a backend file path
-				const match = plugin.icon.match(/\/files\/([a-zA-Z0-9]+)/);
-				if (match && match[1]) {
-					const url = `paws-theme://${match[1]}`;
-					const response = await fetch(url);
-					if (response.ok) {
-						const text = await response.text();
-						// Simple check to ensure it's SVG
-						if (text.includes("<svg")) {
-							iconContent[plugin.id] = text;
-						}
-					}
-				}
-			} catch (e) {
-				console.error(`Failed to load icon for ${plugin.name}`, e);
-			}
-		}
-	}
-};
-
-// Watch for changes in plugin list to load icons
-watch(
-	() => pluginState.allInstalledPlugins,
-	() => {
-		loadPluginIcons();
-	},
-	{ immediate: true }
-);
 </script>
 
 <template>
@@ -77,11 +41,7 @@ watch(
 											<div class="header-center">
 												<div class="title-group">
 													<!-- eslint-disable-next-line vue/no-v-html -->
-													<div
-														v-if="iconContent[plugin.id]"
-														class="plugin-icon"
-														v-html="iconContent[plugin.id]"
-													></div>
+													<div v-if="plugin.icon" class="plugin-icon" v-html="plugin.icon"></div>
 													<span class="plugin-name">{{ plugin.name }}</span>
 												</div>
 											</div>
@@ -225,12 +185,6 @@ watch(
 	box-sizing: border-box;
 }
 
-/*
-   Logic check:
-   Overlay/Modal: bg-primary
-   PawsCard (section): bg-secondary (default for Card in this context)
-   PawsSpoilerCard: bg-primary (main background)
-*/
 .plugins-list {
 	display: flex;
 	flex-direction: column;
@@ -276,7 +230,6 @@ watch(
 .plugin-icon {
 	width: 24px;
 	height: 24px;
-	background-color: var(--paws-color-text-primary);
 	mask-size: contain;
 	-webkit-mask-size: contain;
 	mask-repeat: no-repeat;

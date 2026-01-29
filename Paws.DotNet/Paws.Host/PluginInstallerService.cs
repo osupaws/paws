@@ -128,9 +128,31 @@ public class PluginInstallerService
                 Author = manifest.Author ?? "",
                 EntryPoint = manifest.EntryPoint,
                 UiEntry = manifest.Ui?.Entry ?? "",
-                Icon = manifest.Icon, // Map Icon
+                Icon = manifest.Icon, // Map Icon Path
                 IsActive = true
             };
+
+            // Optimization: If Icon is SVG, try to read it now and store in IconData
+            if (!string.IsNullOrEmpty(manifest.Icon) && manifest.Icon.EndsWith(".svg", StringComparison.OrdinalIgnoreCase))
+            {
+               try
+               {
+                   var iconEntry = fileEntries.FirstOrDefault(f => f.RelativePath.Equals(manifest.Icon.Replace("\\", "/"), StringComparison.OrdinalIgnoreCase));
+                   if (iconEntry != default)
+                   {
+                        // We need to read the file again or cache bytes. Since we just wrote it, reading from disk is safest/easiest here without passing bytes around.
+                        var iconFullPath = Path.Combine(sourceDir, manifest.Icon);
+                        if (File.Exists(iconFullPath))
+                        {
+                            plugin.IconData = File.ReadAllText(iconFullPath); // Store raw SVG
+                        }
+                   }
+               }
+               catch (Exception ex) {
+                   // Log but don't fail install
+                    // _logger.LogWarning("Failed to extract SVG content for DB storage: {Ex}", ex.Message);
+               }
+            }
 
             realm.Add(plugin);
 
