@@ -91,11 +91,18 @@ public class StableDbService
 
         _logger.LogInformation("Parsing {FileName} from disk...", fileName);
 
-        var parsedData = await parseFunc(dbPath);
+        _logger.LogInformation("Parsing {FileName} from disk...", fileName);
 
-        _logger.LogInformation("Finished parsing {FileName}.", fileName);
-
-        // Return a tuple with the new data and timestamp
-        return (parsedData, lastWriteTime);
+        try
+        {
+            var parsedData = await parseFunc(dbPath);
+            _logger.LogInformation("Finished parsing {FileName}.", fileName);
+            return (parsedData, lastWriteTime);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to parse {FileName}.", fileName);
+            return null;
+        }
     }
 }

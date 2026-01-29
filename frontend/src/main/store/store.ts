@@ -1,4 +1,4 @@
-import Store, { Schema } from "electron-store";
+import type { Schema } from "electron-store";
 
 export type StoreType = {
 	isCompact: boolean;
@@ -16,4 +16,8 @@ const schema: Schema<StoreType> = {
 	}
 };
 
-export const store = new Store<StoreType>({ schema });
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const StoreInput = require("electron-store");
+const Store = StoreInput.default || StoreInput;
+
+export const store = new Store({ schema });
