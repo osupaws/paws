@@ -3,7 +3,7 @@ import { appState } from "@main/state/app.state";
 import { BrowserWindow, shell } from "electron";
 import { join } from "path";
 
-export const createMainWindow = (splashWindow: BrowserWindow): BrowserWindow => {
+export const createMainWindow = (): BrowserWindow => {
 	const mainWindow = new BrowserWindow({
 		width: 640,
 		height: 800,
@@ -28,13 +28,13 @@ export const createMainWindow = (splashWindow: BrowserWindow): BrowserWindow => 
 	});
 	appState.set("mainWindow", mainWindow);
 
-	mainWindow.on("ready-to-show", () => {
-		mainWindow.show();
+	// mainWindow.on("ready-to-show", () => {
+	// 	mainWindow.show();
 
-		if (splashWindow) {
-			splashWindow.destroy();
-		}
-	});
+	// 	if (splashWindow) {
+	// 		splashWindow.destroy();
+	// 	}
+	// });
 
 	mainWindow.webContents.setWindowOpenHandler(details => {
 		shell.openExternal(details.url);

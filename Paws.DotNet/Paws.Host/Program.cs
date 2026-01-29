@@ -40,11 +40,16 @@ builder.Services.AddHttpClient(); // For PluginRepositoryService
 var app = builder.Build();
 
 // --- Asynchronous Service Initialization ---
+// --- Asynchronous Service Initialization ---
 var pawsDb = app.Services.GetRequiredService<PawsDbService>();
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
+var hostServices = app.Services.GetRequiredService<IHostServices>(); // Get HostServices for progress logging
+
+hostServices.LogProgress("Initializing Database...", 10);
 try
 {
     await pawsDb.InitializeAsync();
+    hostServices.LogProgress("Database Initialized", 40);
 }
 catch (Exception ex)
 {
@@ -54,9 +59,13 @@ catch (Exception ex)
 }
 
 // --- Plugin Loading ---
+hostServices.LogProgress("Discovering Plugins...", 50);
 var pluginManager = app.Services.GetRequiredService<PluginManager>();
 pluginManager.DiscoverAndLoadPlugins(); // Loads all active plugins from DB
+hostServices.LogProgress("Plugins Loaded", 90);
+
 logger.LogInformation("Paws.Host C# Backend started successfully.");
+hostServices.LogProgress("Backend Ready", 100);
 
 // --- API Endpoints ---
 

@@ -17,6 +17,14 @@ public interface IHostServices
     void LogMessage(string message, PawsLogLvl level = PawsLogLvl.Information, string? pluginName = null);
 
     /// <summary>
+    /// Logs a structured progress event (0-100%) to the console.
+    /// The frontend parses these logs to update the Splash Screen.
+    /// </summary>
+    /// <param name="message">Description of the current operation.</param>
+    /// <param name="percent">Progress percentage (0.0 to 100.0).</param>
+    void LogProgress(string message, double percent);
+
+    /// <summary>
     /// Gets a disposable context for accessing osu!lazer data in a decoupled, strongly-typed manner.
     /// The returned context owns the Realm instance connection, so you MUST dispose it (using statement).
     /// </summary>

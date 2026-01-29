@@ -31,6 +31,14 @@ public class HostServices : IHostServices
     }
 
     /// <inheritdoc/>
+    public void LogProgress(string message, double percent)
+    {
+        // Output format: [Progress] 45.5% - Loading plugins
+        // backend.ts regex: /^\[Progress\] (\d+(?:\.\d+)?)% - (.*)$/
+        _logger.LogInformation("[Progress] {Percent:0.0}% - {Message}", percent, message);
+    }
+
+    /// <inheritdoc/>
     public LazerContext? GetLazerContext()
     {
         var realm = _lazerDbService.GetSafeReadInstance();

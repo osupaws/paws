@@ -10,6 +10,7 @@ import { app, BrowserWindow, ipcMain, net, protocol } from "electron";
 import log from "electron-log";
 import { existsSync } from "fs";
 import { join, normalize } from "path";
+import { pathToFileURL } from "url";
 
 // Linter Fix: Add async return type Promise<any>
 const BACKEND_PORT = 5088;
@@ -90,16 +91,16 @@ app.whenReady().then(async () => {
 		try {
 			const url = new URL(request.url);
 
-            // Handle hostname as part of the path (e.g. paws-app://file.js -> hostname=file.js)
-            let relativePath = url.hostname;
-            if (url.pathname && url.pathname !== "/") {
-                relativePath = join(relativePath, url.pathname);
-            }
+			// Handle hostname as part of the path (e.g. paws-app://file.js -> hostname=file.js)
+			let relativePath = url.hostname;
+			if (url.pathname && url.pathname !== "/") {
+				relativePath = join(relativePath, url.pathname);
+			}
 
-            // Remove trailing separator if present (browser adds trailing slash to hostname-only URLs)
-            if (relativePath.endsWith("/") || relativePath.endsWith("\\")) {
-                relativePath = relativePath.slice(0, -1);
-            }
+			// Remove trailing separator if present (browser adds trailing slash to hostname-only URLs)
+			if (relativePath.endsWith("/") || relativePath.endsWith("\\")) {
+				relativePath = relativePath.slice(0, -1);
+			}
 
 			const publicRoot = is.dev
 				? join(__dirname, "..", "..", "public") // Dev: serve from source public folder
@@ -121,7 +122,7 @@ app.whenReady().then(async () => {
 				return new Response("Forbidden", { status: 403 });
 			}
 
-            const fileUrl = require("url").pathToFileURL(absolutePath).toString();
+			const fileUrl = pathToFileURL(absolutePath).toString();
 			return net.fetch(fileUrl);
 		} catch (error) {
 			log.error(`Error in 'paws-app' protocol for ${request.url}: ${error}`);
@@ -176,13 +177,13 @@ app.whenReady().then(async () => {
 		}
 	});
 
-	const splashWindow = createSplashWindow();
-	createMainWindow(splashWindow);
+	createSplashWindow();
+	createMainWindow();
 
 	startBackend();
 
 	app.on("activate", function () {
-		if (BrowserWindow.getAllWindows().length === 0) createMainWindow(splashWindow);
+		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 	});
 });
 
