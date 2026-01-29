@@ -27,7 +27,6 @@ namespace Paws.Host
                 {
                     typeof(FileEntry),
                     typeof(Theme),
-                    typeof(PawsConfig),
                     typeof(AppSetting),
                     typeof(FileBlob),
                     typeof(Plugin),
@@ -43,23 +42,6 @@ namespace Paws.Host
             {
                 using var realm = await Realm.GetInstanceAsync(_config);
                 _logger.LogInformation("Paws database configuration validated successfully at {path}", _config.DatabasePath);
-
-                // --- Migration Logic from PawsConfig (v2) to AppSetting (v3) ---
-                var oldConfig = realm.Find<PawsConfig>(0);
-                if (oldConfig != null)
-                {
-                    _logger.LogInformation("Found legacy PawsConfig. Migrating to AppSetting...");
-                    realm.Write(() =>
-                    {
-                        if (oldConfig.StablePath != null) UpsertSettingInternal(realm, "core.paths.stable", oldConfig.StablePath, "string");
-                        if (oldConfig.LazerPath != null) UpsertSettingInternal(realm, "core.paths.lazer", oldConfig.LazerPath, "string");
-                        UpsertSettingInternal(realm, "core.modes.legacy", oldConfig.IsLegacyMode.ToString().ToLower(), "bool");
-
-                        // Delete legacy config after migration
-                        realm.Remove(oldConfig);
-                    });
-                    _logger.LogInformation("Migration to AppSetting completed.");
-                }
             }
             catch (Exception ex)
             {
@@ -70,11 +52,35 @@ namespace Paws.Host
 
         public RealmConfiguration GetRealmConfiguration() => _config;
 
+        public void RunRead(Action<Realm> action)
+        {
+            using var realm = Realm.GetInstance(_config);
+            action(realm);
+        }
+
+        public T RunRead<T>(Func<Realm, T> action)
+        {
+            using var realm = Realm.GetInstance(_config);
+            return action(realm);
+        }
+
+        public void RunWrite(Action<Realm> action)
+        {
+            using var realm = Realm.GetInstance(_config);
+            realm.Write(() => action(realm));
+        }
+
+        public async Task RunWriteAsync(Action<Realm> action)
+        {
+             using var realm = Realm.GetInstance(_config);
+             await realm.WriteAsync(() => action(realm));
+        }
+
         public IEnumerable<ThemeDto> GetAllThemes()
         {
             var results = new List<ThemeDto>();
 
-            using (var realm = Realm.GetInstance(_config))
+            RunRead(realm =>
             {
                 var allThemes = realm.All<Theme>();
 
@@ -95,43 +101,17 @@ namespace Paws.Host
 
                     results.Add(themeDto);
                 }
-            }
+            });
 
             return results;
         }
 
         public FileEntry? GetFileEntry(string hash)
         {
-            using var realm = Realm.GetInstance(_config);
-            var fileEntry = realm.Find<FileEntry>(hash);
-            return fileEntry?.Freeze();
-        }
-
-        public PawsConfig GetConfig()
-        {
-            using var realm = Realm.GetInstance(_config);
-            var config = realm.Find<PawsConfig>(0);
-            if (config == null)
+            return RunRead(realm =>
             {
-                realm.Write(() =>
-                {
-                    config = realm.Add(new PawsConfig { Id = 0 });
-                });
-            }
-            return config!.Freeze();
-        }
-
-        public void SetConfig(Action<PawsConfig> updateAction)
-        {
-            using var realm = Realm.GetInstance(_config);
-            realm.Write(() =>
-            {
-                var config = realm.Find<PawsConfig>(0);
-                if (config == null)
-                {
-                    config = realm.Add(new PawsConfig { Id = 0 });
-                }
-                updateAction(config);
+                var fileEntry = realm.Find<FileEntry>(hash);
+                return fileEntry?.Freeze();
             });
         }
 
@@ -139,21 +119,21 @@ namespace Paws.Host
 
         public IEnumerable<AppSettingDto> GetAllSettings()
         {
-            using var realm = Realm.GetInstance(_config);
-            return realm.All<AppSetting>().ToList().Select(s => new AppSettingDto(s.Key, s.Value, s.Type)).ToList();
+            return RunRead(realm => realm.All<AppSetting>().ToList().Select(s => new AppSettingDto(s.Key, s.Value, s.Type)).ToList());
         }
 
         public AppSettingDto? GetSetting(string key)
         {
-            using var realm = Realm.GetInstance(_config);
-            var setting = realm.Find<AppSetting>(key);
-            return setting != null ? new AppSettingDto(setting.Key, setting.Value, setting.Type) : null;
+            return RunRead(realm =>
+            {
+                var setting = realm.Find<AppSetting>(key);
+                return setting != null ? new AppSettingDto(setting.Key, setting.Value, setting.Type) : null;
+            });
         }
 
         public void SetSetting(string key, string value, string type = "string")
         {
-            using var realm = Realm.GetInstance(_config);
-            realm.Write(() =>
+            RunWrite(realm =>
             {
                 UpsertSettingInternal(realm, key, value, type);
             });

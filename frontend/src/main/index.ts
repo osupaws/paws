@@ -12,8 +12,10 @@ import { existsSync } from "fs";
 import { join, normalize } from "path";
 
 // Linter Fix: Add async return type Promise<any>
+const BACKEND_PORT = 5088;
+
 async function forwardRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-	const baseUrl = "http://localhost:5088";
+	const baseUrl = `http://localhost:${BACKEND_PORT}`;
 	try {
 		const response = await net.fetch(`${baseUrl}${endpoint}`, options);
 		if (!response.ok) {
@@ -82,20 +84,32 @@ app.whenReady().then(async () => {
 
 	// --- PAWS App Protocol (System Files) ---
 	// This protocol serves non-plugin, built-in application assets.
+	// --- PAWS App Protocol (System Files) ---
+	// This protocol serves non-plugin, built-in application assets.
 	protocol.handle("paws-app", request => {
 		try {
 			const url = new URL(request.url);
-			const assetPath = `${url.hostname}${url.pathname}`;
+
+            // Handle hostname as part of the path (e.g. paws-app://file.js -> hostname=file.js)
+            let relativePath = url.hostname;
+            if (url.pathname && url.pathname !== "/") {
+                relativePath = join(relativePath, url.pathname);
+            }
+
+            // Remove trailing separator if present (browser adds trailing slash to hostname-only URLs)
+            if (relativePath.endsWith("/") || relativePath.endsWith("\\")) {
+                relativePath = relativePath.slice(0, -1);
+            }
 
 			const publicRoot = is.dev
 				? join(__dirname, "..", "..", "public") // Dev: serve from source public folder
 				: join(__dirname, "..", "renderer"); // Prod: serve from built renderer folder
 
-			const absolutePath = join(publicRoot, assetPath);
+			const absolutePath = join(publicRoot, relativePath);
 
 			// Explicitly check file existence
 			if (!existsSync(absolutePath)) {
-				log.warn(`File not found for paws-app: ${absolutePath}`);
+				log.warn(`File not found for paws-app: ${absolutePath} (Request: ${request.url})`);
 				return new Response("Not Found", { status: 404 });
 			}
 
@@ -107,7 +121,8 @@ app.whenReady().then(async () => {
 				return new Response("Forbidden", { status: 403 });
 			}
 
-			return net.fetch(encodeURI(`file://${absolutePath.replace(/\\/g, "/")}`));
+            const fileUrl = require("url").pathToFileURL(absolutePath).toString();
+			return net.fetch(fileUrl);
 		} catch (error) {
 			log.error(`Error in 'paws-app' protocol for ${request.url}: ${error}`);
 			return new Response("Internal Server Error", { status: 500 });

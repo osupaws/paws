@@ -2,6 +2,7 @@ using Paws.Core.Abstractions;
 using Paws.Host.Data.Schemas;
 using System.Reflection;
 using System.Runtime.Loader;
+using Realms;
 
 namespace Paws.Host;
 
@@ -36,10 +37,8 @@ public class PluginManager
     {
         _logger.LogInformation("Starting plugin discovery from database...");
 
-        var config = _dbService.GetRealmConfiguration();
-        using var realm = Realms.Realm.GetInstance(config);
-
-        var allPlugins = realm.All<Plugin>().ToList();
+        // FIX: Freeze objects so they survive the closed Realm
+        var allPlugins = _dbService.RunRead(realm => realm.All<Plugin>().ToList().Select(p => p.Freeze()).ToList());
 
         foreach (var plugin in allPlugins)
         {
@@ -77,10 +76,11 @@ public class PluginManager
         UnloadPlugin(pluginId);
 
         // 2. Load from DB
-        var config = _dbService.GetRealmConfiguration();
-        using var realm = Realms.Realm.GetInstance(config);
+        var plugin = _dbService.RunRead(realm => {
+            var p = realm.Find<Plugin>(pluginId);
+            return p?.Freeze();
+        });
 
-        var plugin = realm.Find<Plugin>(pluginId);
         if (plugin != null && plugin.IsActive)
         {
             LoadSinglePlugin(plugin);
@@ -164,46 +164,47 @@ public class PluginManager
     /// <summary>Gets a list of all installed plugins (active and inactive).</summary>
     public IEnumerable<PluginManifest> GetAllPlugins()
     {
-        var config = _dbService.GetRealmConfiguration();
-        using var realm = Realms.Realm.GetInstance(config);
-
-        return realm.All<Plugin>().ToList().Select(p => {
-             return new PluginManifest(
-                p.Id,
-                p.Name,
-                p.Version,
-                p.EntryPoint,
-                p.Author,
-                p.Description,
-                string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
-                p.IconData, // Pass raw SVG (or null) directly
-                p.Permissions.ToList(),
-                p.Provides.ToList(),
-                p.Consumes.ToList(),
-                p.IsActive
-            );
-        }).ToList();
+        return _dbService.RunRead(realm =>
+        {
+            return realm.All<Plugin>().ToList().Select(p => {
+                 return new PluginManifest(
+                    p.Id,
+                    p.Name,
+                    p.Version,
+                    p.EntryPoint,
+                    p.Author,
+                    p.Description,
+                    string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
+                    p.IconData, // Pass raw SVG (or null) directly
+                    p.Permissions.ToList(),
+                    p.Provides.ToList(),
+                    p.Consumes.ToList(),
+                    p.IsActive
+                );
+            }).ToList();
+        });
     }
 
     /// <summary>Sets the active state of a plugin and loads/unloads it accordingly.</summary>
     public void SetPluginActive(string pluginId, bool isActive)
     {
-        var config = _dbService.GetRealmConfiguration();
-        using var realm = Realms.Realm.GetInstance(config);
-
-        var plugin = realm.Find<Plugin>(pluginId);
-        if (plugin == null) return;
-
-        realm.Write(() =>
+        _dbService.RunWrite(realm =>
         {
+            var plugin = realm.Find<Plugin>(pluginId);
+            if (plugin == null) return;
             plugin.IsActive = isActive;
         });
 
+        // We reload outside the write transaction
         if (isActive)
         {
             if (!_loadedPlugins.ContainsKey(pluginId))
             {
-                LoadSinglePlugin(plugin);
+                 var plugin = _dbService.RunRead(realm => {
+                     var p = realm.Find<Plugin>(pluginId);
+                     return p?.Freeze();
+                 });
+                 if (plugin != null) LoadSinglePlugin(plugin);
             }
         }
         else

@@ -202,7 +202,6 @@ pluginsApi.MapGet("/loaded", (PluginManager pm) => {
 });
 
 pluginsApi.MapGet("/discovered", (PluginManager pm) => Results.Ok(pm.GetAllPlugins()));
-// pluginsApi.MapGet("/pending", (PluginManager pm) => Results.Ok(pm.GetPendingPlugins())); // Deprecated
 
 pluginsApi.MapPost("/execute/{pluginId}", async (Guid pluginId, [FromBody] ExecuteCommandRequest req, PluginManager pm) => {
     var plugin = pm.GetPluginById(pluginId);

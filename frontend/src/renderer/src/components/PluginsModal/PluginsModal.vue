@@ -2,6 +2,7 @@
 import { CloseIcon, PawsCheckbox, PawsHeading, PawsSpoilerCard } from "@osupaws/paws-ui";
 import { closePlugins, modalState } from "@renderer/state/modal.state";
 import { fetchAllPlugins, pluginState, togglePluginActive } from "@renderer/state/plugin.state";
+import { sanitizeSvg } from "@renderer/utils/sanitizer";
 import { onMounted } from "vue";
 
 onMounted(() => {
@@ -40,8 +41,13 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 											</div>
 											<div class="header-center">
 												<div class="title-group">
-													<!-- eslint-disable-next-line vue/no-v-html -->
-													<div v-if="plugin.icon" class="plugin-icon" v-html="plugin.icon"></div>
+													<!-- eslint-disable vue/no-v-html -->
+													<div
+														v-if="plugin.icon"
+														class="plugin-icon"
+														v-html="sanitizeSvg(plugin.icon)"
+													></div>
+													<!-- eslint-enable vue/no-v-html -->
 													<span class="plugin-name">{{ plugin.name }}</span>
 												</div>
 											</div>
@@ -189,10 +195,6 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-}
-
-.plugins-list :deep([data-paws-ui="PawsSpoilerCard"]) {
-	background-color: var(--paws-color-bg-primary) !important;
 }
 
 .plugin-header-content {
