@@ -3,7 +3,7 @@
 import { electronAPI } from "@electron-toolkit/preload";
 import { electronIpc } from "@preload/ipc/electron.ipc";
 import { splashIpc } from "@preload/ipc/splash.ipc";
-import { storeIpc } from "@preload/ipc/store.ipc";
+
 import { themesIpc } from "@preload/ipc/themes.ipc";
 import { contextBridge, ipcRenderer } from "electron";
 
@@ -17,7 +17,7 @@ const backendApi = {
 
 const api = {
 	electron: electronIpc,
-	store: storeIpc,
+
 	splash: splashIpc,
 	themes: themesIpc,
 	// --- START: ADDED CODE ---

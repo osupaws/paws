@@ -39,7 +39,10 @@ const toggleTheme = (): void => {
 	const nextIndex = (currentIndex + 1) % themeState.availableThemes.length;
 	themeState.activeThemeId = themeState.availableThemes[nextIndex].id;
 	// Persist changes
-	window.api.store.set("activeThemeId", themeState.activeThemeId);
+	window.api.backend.post("/api/settings", {
+		key: "activeThemeId",
+		value: themeState.activeThemeId
+	});
 };
 
 const toggleMode = (): void => {

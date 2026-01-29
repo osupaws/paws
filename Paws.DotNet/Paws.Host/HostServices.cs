@@ -31,6 +31,13 @@ public class HostServices : IHostServices
     }
 
     /// <inheritdoc/>
+    public LazerContext? GetLazerContext()
+    {
+        var realm = _lazerDbService.GetSafeReadInstance();
+        return realm != null ? new LazerContext(realm) : null;
+    }
+
+    /// <inheritdoc/>
     public dynamic? GetLazerDatabase() => _lazerDbService.GetSafeReadInstance();
 
     /// <inheritdoc/>

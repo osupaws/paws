@@ -11,7 +11,7 @@ watch(
 		if (!newThemeId) return;
 
 		// 1. Save to store
-		window.api.store.set("activeThemeId", newThemeId);
+		window.api.backend.post("/api/settings", { key: "activeThemeId", value: newThemeId });
 
 		// 2. Update the stylesheet <link>s in the DOM
 		const themeInfo = getActiveThemeInfo();

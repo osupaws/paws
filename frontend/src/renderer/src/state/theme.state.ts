@@ -54,13 +54,23 @@ export async function initializeThemes(): Promise<void> {
 
 	// Handle backward compatibility for saved themes.
 	// Old saved values might be 'dark' or 'light'. We need to convert them to 'paws-dark'/'paws-light'.
-	let savedThemeId = window.api.store.get("activeThemeId", "paws-dark");
+	// We use a helper to safely fetch settings or default.
+	const fetchSetting = async (key: string, def: string) => {
+		try {
+			const res = await window.api.backend.get(`/api/settings/${key}`);
+			return res?.value || def;
+		} catch {
+			return def;
+		}
+	};
+
+	let savedThemeId = await fetchSetting("activeThemeId", "paws-dark");
 	if (savedThemeId === "dark") savedThemeId = "paws-dark";
 	if (savedThemeId === "light") savedThemeId = "paws-light";
 
 	// Load memory of last used base themes
-	const savedLastDark = window.api.store.get("lastDarkThemeId", "paws-dark");
-	const savedLastLight = window.api.store.get("lastLightThemeId", "paws-light");
+	const savedLastDark = await fetchSetting("lastDarkThemeId", "paws-dark");
+	const savedLastLight = await fetchSetting("lastLightThemeId", "paws-light");
 
 	// Verify they still exist
 	if (themeState.availableThemes.some(t => t.id === savedLastDark)) {
@@ -128,16 +138,16 @@ export function setActiveTheme(themeId: string): void {
 
 	if (theme) {
 		themeState.activeThemeId = themeId;
-		window.api.store.set("activeThemeId", themeId);
+		window.api.backend.post("/api/settings", { key: "activeThemeId", value: themeId });
 		console.log(`[ThemeState] Theme changed to: ${themeId}`);
 
 		// Remember this theme as the last used for its base
 		if (theme.base === "dark") {
 			themeState.lastDarkThemeId = themeId;
-			window.api.store.set("lastDarkThemeId", themeId);
+			window.api.backend.post("/api/settings", { key: "lastDarkThemeId", value: themeId });
 		} else if (theme.base === "light") {
 			themeState.lastLightThemeId = themeId;
-			window.api.store.set("lastLightThemeId", themeId);
+			window.api.backend.post("/api/settings", { key: "lastLightThemeId", value: themeId });
 		}
 	} else {
 		console.warn(`[ThemeState] Attempted to set invalid theme ID: ${themeId}`);
