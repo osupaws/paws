@@ -1,6 +1,5 @@
 import { ElectronAPI } from "@preload/ipc/electron.ipc";
 import { SplashAPI } from "@preload/ipc/splash.ipc";
-
 import { ThemesAPI } from "@preload/ipc/themes.ipc";
 
 export interface BackendAPI {

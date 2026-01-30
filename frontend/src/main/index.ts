@@ -12,6 +12,8 @@ import { existsSync } from "fs";
 import { join, normalize } from "path";
 import { pathToFileURL } from "url";
 
+app.name = "Paws"; // Set the application name for AppData paths
+
 // Linter Fix: Add async return type Promise<any>
 const BACKEND_PORT = 5088;
 
@@ -179,6 +181,10 @@ app.whenReady().then(async () => {
 
 	createSplashWindow();
 	createMainWindow();
+
+	if (is.dev) {
+		log.info(`Development Mode: ELECTRON_RENDERER_URL = ${process.env.ELECTRON_RENDERER_URL}`);
+	}
 
 	startBackend();
 

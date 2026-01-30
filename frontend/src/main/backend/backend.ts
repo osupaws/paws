@@ -10,7 +10,10 @@ import log from "electron-log";
 import { existsSync } from "fs";
 import { dirname, join } from "path";
 
+let isStopping = false;
+
 export const startBackend = (): void => {
+	isStopping = false;
 	const startTime = Date.now();
 	const backendExecutableName = process.platform === "win32" ? "Paws.Host.exe" : "Paws.Host";
 
@@ -44,14 +47,54 @@ export const startBackend = (): void => {
 	// Args are no longer used for configuration; Backend uses its own DB
 	const args = [];
 
+	let heartbeatTimer: NodeJS.Timeout | null = null;
+	let lastHeartbeat = Date.now();
+
+	const triggerCrashScreen = (reason: string): void => {
+		if (isStopping) return; // Ignore intentional stops
+		log.error(`[Watchdog] Triggering crash screen: ${reason}`);
+
+		const proc = appState.get("backendProcess");
+		if (proc && !proc.killed) {
+			proc.kill();
+		}
+
+		// Show Crash Screen
+		const mainWindow = appState.get("mainWindow");
+		if (mainWindow && !mainWindow.isDestroyed()) {
+			if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+				mainWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}/crash.html`);
+			} else {
+				mainWindow.loadFile(join(__dirname, "../renderer/crash.html"));
+			}
+			mainWindow.show();
+		}
+
+		if (heartbeatTimer) clearInterval(heartbeatTimer);
+	};
+
+	const checkHeartbeat = (): void => {
+		const now = Date.now();
+		if (now - lastHeartbeat > 5000) {
+			// HEARTBEAT_TIMEOUT = 5000
+			triggerCrashScreen(`No heartbeat for ${now - lastHeartbeat}ms`);
+		}
+	};
+
 	try {
 		const backendProcess = spawn(backendExecutable, args);
 		appState.set("backendProcess", backendProcess);
 
 		let hostSignaledReady = false;
+
 		backendProcess.stdout.on("data", data => {
 			const logMessage = data.toString().trim();
 			log.info(`[Backend]: ${logMessage}`);
+
+			if (logMessage.includes("[Heartbeat]")) {
+				lastHeartbeat = Date.now();
+				return; // Don't process heartbeats further
+			}
 
 			// Parse [Progress] logs from C#
 			// Format: [Progress] 45.0% - Loading plugins
@@ -73,6 +116,9 @@ export const startBackend = (): void => {
 				log.info("Backend signaled readiness.");
 				splashSendStatusUpdate("Backend services started.");
 				splashSendProgressUpdate({ percent: 100, message: "Ready" });
+
+				// Start Watchdog
+				heartbeatTimer = setInterval(checkHeartbeat, 1000);
 
 				const mainWindow = appState.get("mainWindow");
 				if (mainWindow && !mainWindow.isDestroyed()) {
@@ -99,34 +145,21 @@ export const startBackend = (): void => {
 
 		backendProcess.on("error", err => {
 			log.error("Failed to start C# Host process.", err);
-			if (err instanceof Error) {
-				dialog.showErrorBox(
-					"Fatal Error",
-					`An unexpected error occurred while trying to start the backend. Error: ${err.message}`
-				);
-			}
-
-			app.quit();
+			triggerCrashScreen(`Backend process error: ${err.message}`);
 		});
 
 		backendProcess.on("close", code => {
 			log.info(`Backend process exited with code ${code}.`);
+			triggerCrashScreen(`Backend process exited with code ${code}`);
 		});
 	} catch (error) {
 		log.error("Fatal error trying to spawn C# Host process:", error);
-
-		if (error instanceof Error) {
-			dialog.showErrorBox(
-				"Fatal Error",
-				`An unexpected error occurred while trying to start the backend. Error: ${error.message}`
-			);
-		}
-
-		app.quit();
+		triggerCrashScreen("Exception during process spawn");
 	}
 };
 
 export const stopBackend = (): void => {
+	isStopping = true;
 	const process = appState.get("backendProcess");
 
 	if (process) {

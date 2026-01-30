@@ -35,6 +35,7 @@ builder.Services.AddSingleton<PluginRepositoryService>(); // For the plugin stor
 builder.Services.AddSingleton<PluginManager>();
 builder.Services.AddSingleton<PluginInstallerService>();
 builder.Services.AddSingleton<IHostServices, HostServices>();
+builder.Services.AddHostedService<HeartbeatService>(); // Register the heartbeat background service
 builder.Services.AddHttpClient(); // For PluginRepositoryService
 
 var app = builder.Build();
@@ -272,6 +273,15 @@ pluginsApi.MapGet("/{pluginId}/files/{*path}", async (string pluginId, string pa
 pluginsApi.MapGet("/store", async (PluginRepositoryService repoService) => {
     var availablePlugins = await repoService.GetAvailablePluginsAsync();
     return Results.Ok(availablePlugins);
+});
+
+
+// --- Debugging Endpoints ---
+api.MapPost("/debug/kill", () =>
+{
+    // Simulate a crash by killing the process
+    Environment.Exit(-1);
+    return Results.Ok();
 });
 
 app.Run();
