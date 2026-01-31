@@ -86,24 +86,20 @@ export const startBackend = (): void => {
 		appState.set("backendProcess", backendProcess);
 
 		let hostSignaledReady = false;
+		let lineBuffer = "";
 
-		backendProcess.stdout.on("data", data => {
-			const logMessage = data.toString().trim();
+		const processLine = (line: string): void => {
+			const logMessage = line.trim();
+			if (!logMessage) return;
+
 			log.info(`[Backend]: ${logMessage}`);
 
 			if (logMessage.includes("[Heartbeat]")) {
 				lastHeartbeat = Date.now();
-				return; // Don't process heartbeats further
+				return;
 			}
 
-			// Parse [Progress] logs from C#
-			// Format: [Progress] 45.0% - Loading plugins
-
-			// C# logger might prefix with [Info] depending on configuration, so we handle both raw console write or Logger form.
-			// Our HostServices uses _logger.LogInformation, which usually produces: "info: [Progress] 45.0% - Message"
-			// OR "info: Paws.Host.HostServices[0] [Progress]..."
-			// Let's make the regex more robust to find "[Progress]" anywhere.
-
+			// Parse [Progress] logs
 			const pMatch = logMessage.match(/\[Progress\]\s+(\d+(?:\.\d+)?)%\s+-\s+(.*)/);
 			if (pMatch) {
 				const percent = parseFloat(pMatch[1]);
@@ -115,6 +111,8 @@ export const startBackend = (): void => {
 				hostSignaledReady = true;
 				log.info("Backend signaled readiness.");
 				splashSendStatusUpdate("Backend services started.");
+
+				// Force 100% in case we missed it
 				splashSendProgressUpdate({ percent: 100, message: "Ready" });
 
 				// Start Watchdog
@@ -129,13 +127,26 @@ export const startBackend = (): void => {
 
 					setTimeout(() => {
 						mainWindow.show();
-						// Close splash after main window is visible
+						// Close splash AFTER showing main (better UX)
 						const splashWindow = appState.get("splashWindow");
 						if (splashWindow && !splashWindow.isDestroyed()) {
 							splashWindow.destroy();
 						}
 					}, delay);
 				}
+			}
+		};
+
+		backendProcess.stdout.on("data", data => {
+			lineBuffer += data.toString();
+			const lines = lineBuffer.split(/\r?\n/);
+
+			// Process all complete lines
+			// The last element is either an empty string (if ends with newline) or an incomplete line
+			lineBuffer = lines.pop() || "";
+
+			for (const line of lines) {
+				processLine(line);
 			}
 		});
 
