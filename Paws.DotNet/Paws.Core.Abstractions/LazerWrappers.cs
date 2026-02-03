@@ -22,14 +22,26 @@ public static class LazerSchema
 
 public class LazerBeatmapSet
 {
-    private readonly dynamic _obj;
+    internal readonly dynamic _obj;
     public LazerBeatmapSet(dynamic obj) => _obj = obj;
 
     public Guid ID => _obj.ID;
     public int OnlineID => _obj.OnlineID;
     public string Hash => _obj.Hash;
-    public bool Protected => _obj.Protected;
-    public bool DeletePending => _obj.DeletePending;
+    public DateTimeOffset DateAdded => _obj.DateAdded;
+
+    // Allow Write Access
+    public bool Protected
+    {
+        get => _obj.Protected;
+        set => _obj.Protected = value;
+    }
+
+    public bool DeletePending
+    {
+        get => _obj.DeletePending;
+        set => _obj.DeletePending = value;
+    }
 
     // Relations
     public IEnumerable<LazerBeatmap> Beatmaps
@@ -37,11 +49,27 @@ public class LazerBeatmapSet
 
     public IEnumerable<LazerNamedFileUsage> Files
         => ((IEnumerable<dynamic>)_obj.Files).Select(f => new LazerNamedFileUsage(f));
+
+    // Modification Methods (Write Access)
+    public void RemoveFile(LazerNamedFileUsage file)
+    {
+        _obj.Files.Remove(file._obj);
+    }
+
+    public void AddFile(LazerNamedFileUsage file)
+    {
+        _obj.Files.Add(file._obj);
+    }
+
+    public void RemoveBeatmap(LazerBeatmap beatmap)
+    {
+        _obj.Beatmaps.Remove(beatmap._obj);
+    }
 }
 
 public class LazerBeatmap
 {
-    private readonly dynamic _obj;
+    internal readonly dynamic _obj;
     public LazerBeatmap(dynamic obj) => _obj = obj;
 
     public Guid ID => _obj.ID;
@@ -50,6 +78,12 @@ public class LazerBeatmap
     public double StarRating => _obj.StarRating;
     public string MD5Hash => _obj.MD5Hash;
 
+    public bool DeletePending
+    {
+        get => _obj.DeletePending;
+        set => _obj.DeletePending = value;
+    }
+
     // Relations
     public LazerRuleset? Ruleset => _obj.Ruleset != null ? new LazerRuleset(_obj.Ruleset) : null;
     public LazerBeatmapSet? BeatmapSet => _obj.BeatmapSet != null ? new LazerBeatmapSet(_obj.BeatmapSet) : null;
@@ -57,7 +91,7 @@ public class LazerBeatmap
 
 public class LazerRuleset
 {
-    private readonly dynamic _obj;
+    internal readonly dynamic _obj;
     public LazerRuleset(dynamic obj) => _obj = obj;
 
     public string ShortName => _obj.ShortName;
@@ -68,16 +102,20 @@ public class LazerRuleset
 
 public class LazerNamedFileUsage
 {
-    private readonly dynamic _obj;
+    internal readonly dynamic _obj;
     public LazerNamedFileUsage(dynamic obj) => _obj = obj;
 
-    public string Filename => _obj.Filename;
+    public string Filename
+    {
+        get => _obj.Filename;
+        set => _obj.Filename = value; // Allow renaming if needed
+    }
     public LazerRealmFile? File => _obj.File != null ? new LazerRealmFile(_obj.File) : null;
 }
 
 public class LazerRealmFile
 {
-    private readonly dynamic _obj;
+    internal readonly dynamic _obj;
     public LazerRealmFile(dynamic obj) => _obj = obj;
 
     public string Hash => _obj.Hash;

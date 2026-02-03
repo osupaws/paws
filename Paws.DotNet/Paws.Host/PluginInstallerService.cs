@@ -134,6 +134,15 @@ public class PluginInstallerService
                 realm.Remove(existing);
             }
 
+            // Check for Name Conflict (same name, different ID)
+            var duplicateName = realm.All<Plugin>()
+                .FirstOrDefault(p => p.Name == manifest.Name && p.Id != manifest.Id);
+
+            if (duplicateName != null)
+            {
+                throw new InvalidOperationException($"Plugin with name '{manifest.Name}' already exists (ID: {duplicateName.Id}). Cannot install new plugin with ID '{manifest.Id}'. Please uninstall the existing plugin first.");
+            }
+
             // Create Plugin Record
             var plugin = new Plugin
             {

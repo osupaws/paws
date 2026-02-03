@@ -12,3 +12,8 @@ body {
 	margin: 0;
 	padding: 0;
 }
+
+/* Fix for scrollbar flicker: Hide scrollbars globally in plugins */
+*::-webkit-scrollbar {
+	display: none;
+}
