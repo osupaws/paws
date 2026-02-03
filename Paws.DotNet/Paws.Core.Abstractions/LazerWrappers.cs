@@ -87,6 +87,18 @@ public class LazerBeatmap
     // Relations
     public LazerRuleset? Ruleset => _obj.Ruleset != null ? new LazerRuleset(_obj.Ruleset) : null;
     public LazerBeatmapSet? BeatmapSet => _obj.BeatmapSet != null ? new LazerBeatmapSet(_obj.BeatmapSet) : null;
+    public LazerBeatmapMetadata? Metadata => _obj.Metadata != null ? new LazerBeatmapMetadata(_obj.Metadata) : null;
+}
+
+public class LazerBeatmapMetadata
+{
+    internal readonly dynamic _obj;
+    public LazerBeatmapMetadata(dynamic obj) => _obj = obj;
+
+    public string Title => _obj.Title;
+    public string Artist => _obj.Artist;
+    public string AudioFile => _obj.AudioFile;
+    public string BackgroundFile => _obj.BackgroundFile;
 }
 
 public class LazerRuleset
