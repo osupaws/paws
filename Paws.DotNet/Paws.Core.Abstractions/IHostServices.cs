@@ -71,4 +71,9 @@ public interface IHostServices
     /// <exception cref="StableIsRunningException">Thrown if the osu!stable process is detected.</exception>
     /// <exception cref="InvalidOperationException">Thrown if the stable path isn't set.</exception>
     Task PerformStableWriteAsync(Action<string> action);
+
+    /// <summary>
+    /// Gets the context for interacting with osu!stable data.
+    /// </summary>
+    StableContext GetStableContext();
 }

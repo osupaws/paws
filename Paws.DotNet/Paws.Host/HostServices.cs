@@ -91,4 +91,10 @@ public class HostServices : IHostServices
             action(stablePath);
         });
     }
+
+    /// <inheritdoc/>
+    public StableContext GetStableContext()
+    {
+        return new StableContext();
+    }
 }
