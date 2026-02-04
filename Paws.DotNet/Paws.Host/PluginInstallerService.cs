@@ -168,7 +168,7 @@ public class PluginInstallerService
                         plugin.IconData = File.ReadAllText(iconFullPath);
                     }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
                     // Log warning if needed
                 }

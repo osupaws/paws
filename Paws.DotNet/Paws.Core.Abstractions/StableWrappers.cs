@@ -57,7 +57,7 @@ public class StableScore
     public string PlayerName => _obj.PlayerName;
     public string BeatmapMD5Hash => _obj.BeatmapMD5Hash;
     public Ruleset Ruleset => _obj.Ruleset;
-    public int ScoreId => _obj.ScoreId;
+    public long ScoreId => _obj.ScoreId;
     // Add other fields as needed
 }
 
