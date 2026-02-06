@@ -48,7 +48,7 @@ namespace Paws.Host
                 // Attempting to define a partial schema causes MigrationNeeded exceptions because Realm
                 // expects the class definition to match the full table definition on disk.
                 IsDynamic = true,
-                SchemaVersion = 51, // Matches osu!lazer as of 2024
+                // SchemaVersion removed to allow dynamic opening of any version
             };
         }
 
@@ -113,6 +113,12 @@ namespace Paws.Host
             {
                 var config = GetLazerConfig(dbPath, readOnly: false);
                 return Realm.GetInstance(config);
+            }
+            catch (RealmMismatchedConfigException ex)
+            {
+                throw new LazerAccessConflictException(
+                    "Cannot open Lazer database for writing because it is already open for reading in this process. " +
+                    "Ensure you have disposed your LazerContext (wrapped in 'using') BEFORE calling PerformLazerWriteAsync.", ex);
             }
             catch (Exception ex)
             {

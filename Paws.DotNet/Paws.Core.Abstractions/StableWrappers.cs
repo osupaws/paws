@@ -39,7 +39,7 @@ public class StableBeatmap
     public string Difficulty => _obj.Difficulty;
     public string Creator => _obj.Creator;
 
-    public Ruleset Ruleset => _obj.Ruleset;
+    public int Ruleset => (int)_obj.Ruleset;
     public string MD5Hash => _obj.MD5Hash;
     public string FolderName => _obj.FolderName;
     public string FileName => _obj.FileName;
@@ -56,7 +56,7 @@ public class StableScore
 
     public string PlayerName => _obj.PlayerName;
     public string BeatmapMD5Hash => _obj.BeatmapMD5Hash;
-    public Ruleset Ruleset => _obj.Ruleset;
+    public int Ruleset => (int)_obj.Ruleset;
     public long ScoreId => _obj.ScoreId;
     // Add other fields as needed
 }

@@ -26,10 +26,10 @@ public interface IHostServices
 
     /// <summary>
     /// Gets a disposable context for accessing osu!lazer data in a decoupled, strongly-typed manner.
-    /// The returned context owns the Realm instance connection, so you MUST dispose it (using statement).
+    /// The returned context implementation handles Realm connections internally.
     /// </summary>
-    /// <returns>A LazerContext, or null if database is inaccessible.</returns>
-    LazerContext? GetLazerContext();
+    /// <returns>An ILazerContext implementation, or null if database is inaccessible.</returns>
+    ILazerContext? GetLazerContext();
 
     /// <summary>
     /// Gets a read-only, dynamic Realm instance for the osu!lazer database.
@@ -76,4 +76,9 @@ public interface IHostServices
     /// Gets the context for interacting with osu!stable data.
     /// </summary>
     StableContext GetStableContext();
+
+    /// <summary>
+    /// Gets a value indicating whether the application is running in Legacy Mode (targeting osu!stable).
+    /// </summary>
+    bool IsLegacyMode { get; }
 }

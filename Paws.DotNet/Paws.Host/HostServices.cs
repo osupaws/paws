@@ -14,12 +14,14 @@ public class HostServices : IHostServices
     private readonly ILogger<HostServices> _logger;
     private readonly LazerDbService _lazerDbService;
     private readonly StableDbService _stableDbService;
+    private readonly PawsDbService _pawsDbService;
 
-    public HostServices(ILogger<HostServices> logger, LazerDbService lazerDbService, StableDbService stableDbService)
+    public HostServices(ILogger<HostServices> logger, LazerDbService lazerDbService, StableDbService stableDbService, PawsDbService pawsDbService)
     {
         _logger = logger;
         _lazerDbService = lazerDbService;
         _stableDbService = stableDbService;
+        _pawsDbService = pawsDbService;
     }
 
     /// <inheritdoc/>
@@ -39,10 +41,9 @@ public class HostServices : IHostServices
     }
 
     /// <inheritdoc/>
-    public LazerContext? GetLazerContext()
+    public ILazerContext? GetLazerContext()
     {
-        var realm = _lazerDbService.GetSafeReadInstance();
-        return realm != null ? new LazerContext(realm) : null;
+        return new Paws.Host.Services.Lazer.LazerContext(_lazerDbService, _logger);
     }
 
     /// <inheritdoc/>
@@ -97,4 +98,7 @@ public class HostServices : IHostServices
     {
         return new StableContext();
     }
+
+    /// <inheritdoc/>
+    public bool IsLegacyMode => _pawsDbService.GetSetting("core.modes.legacy")?.Value == "true";
 }
