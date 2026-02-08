@@ -33,7 +33,7 @@ public class PluginManager
     /// <summary>
     /// Loads all active plugins from the database. Skips already loaded plugins.
     /// </summary>
-    public void DiscoverAndLoadPlugins()
+    public async Task DiscoverAndLoadPluginsAsync()
     {
         _logger.LogInformation("Starting plugin discovery from database...");
 
@@ -45,11 +45,11 @@ public class PluginManager
             if (!plugin.IsActive)
             {
                 // Optionally unload if it was previously loaded but now disabled
-                 if (_loadedPlugins.ContainsKey(plugin.Id))
-                 {
-                     _logger.LogInformation("Plugin '{Name}' ({Id}) is now disabled. Unloading...", plugin.Name, plugin.Id);
-                     UnloadPlugin(plugin.Id);
-                 }
+                if (_loadedPlugins.ContainsKey(plugin.Id))
+                {
+                    _logger.LogInformation("Plugin '{Name}' ({Id}) is now disabled. Unloading...", plugin.Name, plugin.Id);
+                    UnloadPlugin(plugin.Id);
+                }
                 continue;
             }
 
@@ -59,7 +59,7 @@ public class PluginManager
                 continue;
             }
 
-            LoadSinglePlugin(plugin);
+            await LoadSinglePluginAsync(plugin);
         }
 
         _logger.LogInformation("Plugin loading finished. {Count} plugins loaded.", _loadedPlugins.Count);
@@ -68,7 +68,7 @@ public class PluginManager
     /// <summary>
     /// Unloads and then reloads a specific plugin by ID.
     /// </summary>
-    public void ReloadPlugin(string pluginId)
+    public async Task ReloadPluginAsync(string pluginId)
     {
         _logger.LogInformation("Reloading plugin: {Id}", pluginId);
 
@@ -76,14 +76,15 @@ public class PluginManager
         UnloadPlugin(pluginId);
 
         // 2. Load from DB
-        var plugin = _dbService.RunRead(realm => {
+        var plugin = _dbService.RunRead(realm =>
+        {
             var p = realm.Find<Plugin>(pluginId);
             return p?.Freeze();
         });
 
         if (plugin != null && plugin.IsActive)
         {
-            LoadSinglePlugin(plugin);
+            await LoadSinglePluginAsync(plugin);
         }
         else
         {
@@ -95,9 +96,9 @@ public class PluginManager
     {
         if (_loadedPlugins.Remove(pluginId, out var instance))
         {
-             // If the plugin supports explicit shutdown/dispose, call it here.
-             // if (instance is IDisposable disposable) disposable.Dispose();
-             _logger.LogInformation("Unloaded plugin instance: {Name}", instance.Name);
+            // If the plugin supports explicit shutdown/dispose, call it here.
+            // if (instance is IDisposable disposable) disposable.Dispose();
+            _logger.LogInformation("Unloaded plugin instance: {Name}", instance.Name);
         }
 
         if (_pluginContexts.Remove(pluginId, out var context))
@@ -107,7 +108,7 @@ public class PluginManager
         }
     }
 
-    private void LoadSinglePlugin(Plugin plugin)
+    private async Task LoadSinglePluginAsync(Plugin plugin)
     {
         try
         {
@@ -128,28 +129,37 @@ public class PluginManager
 
             if (assembly == null)
             {
-                 _logger.LogError("Failed to load assembly '{EntryPoint}' for plugin '{Name}'.", plugin.EntryPoint, plugin.Name);
-                 return;
+                _logger.LogError("Failed to load assembly '{EntryPoint}' for plugin '{Name}'.", plugin.EntryPoint, plugin.Name);
+                return;
             }
 
             var pluginType = assembly.GetTypes().FirstOrDefault(t => typeof(IPlugin).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
 
             if (pluginType == null)
             {
-                 _logger.LogError("No type implementing IPlugin found in '{EntryPoint}'.", plugin.EntryPoint);
-                 return;
+                _logger.LogError("No type implementing IPlugin found in '{EntryPoint}'.", plugin.EntryPoint);
+                return;
             }
 
             // Create an instance of the plugin and initialize it.
             if (Activator.CreateInstance(pluginType) is IFunctionalExplicitPlugin pluginInstance)
             {
-                pluginInstance.Initialize(_hostServices);
+                try
+                {
+                    await pluginInstance.Initialize(_hostServices);
 
-                // Store in Dictionary keyed by DB ID string
-                _loadedPlugins[plugin.Id] = pluginInstance;
-                _pluginContexts[plugin.Id] = context;
+                    // Store in Dictionary keyed by DB ID string
+                    _loadedPlugins[plugin.Id] = pluginInstance;
+                    _pluginContexts[plugin.Id] = context;
 
-                _logger.LogInformation("Successfully loaded plugin: {Name} (v{Version})", pluginInstance.Name, pluginInstance.Version);
+                    _logger.LogInformation("Successfully loaded plugin: {Name} (v{Version})", pluginInstance.Name, pluginInstance.Version);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Plugin '{Name}' crashed during InitializeAsync!", plugin.Name);
+                    if (pluginInstance is IDisposable disposable) disposable.Dispose();
+                    context.Unload();
+                }
             }
         }
         catch (Exception ex)
@@ -166,27 +176,28 @@ public class PluginManager
     {
         return _dbService.RunRead(realm =>
         {
-            return realm.All<Plugin>().ToList().Select(p => {
-                 return new PluginManifest(
-                    p.Id,
-                    p.Name,
-                    p.Version,
-                    p.EntryPoint,
-                    p.Author,
-                    p.Description,
-                    string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
-                    p.IconData, // Pass raw SVG (or null) directly
-                    p.Permissions.ToList(),
-                    p.Provides.ToList(),
-                    p.Consumes.ToList(),
-                    p.IsActive
-                );
+            return realm.All<Plugin>().ToList().Select(p =>
+            {
+                return new PluginManifest(
+                   p.Id,
+                   p.Name,
+                   p.Version,
+                   p.EntryPoint,
+                   p.Author,
+                   p.Description,
+                   string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
+                   p.IconData, // Pass raw SVG (or null) directly
+                   p.Permissions.ToList(),
+                   p.Provides.ToList(),
+                   p.Consumes.ToList(),
+                   p.IsActive
+               );
             }).ToList();
         });
     }
 
     /// <summary>Sets the active state of a plugin and loads/unloads it accordingly.</summary>
-    public void SetPluginActive(string pluginId, bool isActive)
+    public async Task SetPluginActiveAsync(string pluginId, bool isActive)
     {
         _dbService.RunWrite(realm =>
         {
@@ -200,11 +211,12 @@ public class PluginManager
         {
             if (!_loadedPlugins.ContainsKey(pluginId))
             {
-                 var plugin = _dbService.RunRead(realm => {
-                     var p = realm.Find<Plugin>(pluginId);
-                     return p?.Freeze();
-                 });
-                 if (plugin != null) LoadSinglePlugin(plugin);
+                var plugin = _dbService.RunRead(realm =>
+                {
+                    var p = realm.Find<Plugin>(pluginId);
+                    return p?.Freeze();
+                });
+                if (plugin != null) await LoadSinglePluginAsync(plugin);
             }
         }
         else

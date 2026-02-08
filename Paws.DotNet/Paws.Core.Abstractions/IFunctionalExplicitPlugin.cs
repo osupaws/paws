@@ -13,7 +13,7 @@ namespace Paws.Core.Abstractions
         /// <summary>
         /// Called by the host when the plugin is loaded.
         /// </summary>
-        void Initialize(IHostServices hostServices);
+        Task Initialize(IHostServices hostServices);
 
         /// <summary>
         /// A generic method for the UI to send commands to the plugin.

@@ -24,6 +24,11 @@ namespace Paws.Host
             _logger.LogInformation("Lazer path loaded from DB: {path}", _lazerDbPath ?? "Not set");
         }
 
+        public string? GetLazerBasePath()
+        {
+            return _pawsDbService.GetSetting("core.paths.lazer")?.Value;
+        }
+
         public void SetLazerPath(string path)
         {
             var dbPath = Path.Combine(path, "client.realm");

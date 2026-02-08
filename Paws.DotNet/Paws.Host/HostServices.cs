@@ -96,7 +96,7 @@ public class HostServices : IHostServices
     /// <inheritdoc/>
     public StableContext GetStableContext()
     {
-        return new StableContext();
+        return new StableContext(_stableDbService.GetStableRootPath());
     }
 
     /// <inheritdoc/>
