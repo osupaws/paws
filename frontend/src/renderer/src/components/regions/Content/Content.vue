@@ -57,13 +57,20 @@ const iframeRef = ref<HTMLIFrameElement | null>(null);
 
 // Calculate the iframe source based on the active plugin
 const pluginSrc = computed(() => {
+	console.log("[Content.vue] Recalculating pluginSrc. ActiveID:", pluginState.activePluginId);
 	if (!pluginState.activePluginId) return "";
 	const plugin = pluginState.loadedPlugins.find(p => p.id === pluginState.activePluginId);
-	if (!plugin || !plugin.ui) return "";
+	console.log("[Content.vue] Found plugin:", plugin);
+	if (!plugin || !plugin.ui) {
+		console.warn("[Content.vue] Plugin has no UI or not found.");
+		return "";
+	}
 
 	// Custom protocol paws-plugin://[plugin-id]/[entry]?pluginId=[id]
 	// Plugins often expect their own ID in the query params to work with the API
-	return `paws-plugin://${plugin.id}/${plugin.ui.entry}?pluginId=${plugin.id}`;
+	const src = `paws-plugin://${plugin.id}/${plugin.ui.entry}?pluginId=${plugin.id}`;
+	console.log("[Content.vue] Generated SRC:", src);
+	return src;
 });
 
 function postThemeToIframe(iframe: HTMLIFrameElement, isInitial = false): void {

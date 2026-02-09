@@ -52,5 +52,6 @@ export async function togglePluginActive(id: string, isActive: boolean): Promise
 }
 
 export function setActivePlugin(id: string | null): void {
+	console.log("[plugin.state] Setting Active Plugin ID:", id);
 	pluginState.activePluginId = id;
 }

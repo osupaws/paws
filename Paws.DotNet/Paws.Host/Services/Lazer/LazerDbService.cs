@@ -1,11 +1,16 @@
-using Paws.Core.Abstractions;
-
+using Paws.Core.Abstractions.Exceptions;
+using Paws.Host.Data.Schemas;
+using Paws.Host.Services.Core;
 using Realms;
 using Realms.Exceptions;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.IO;
+using System.Linq;
+using System;
+using Microsoft.Extensions.Logging;
 
-namespace Paws.Host
+namespace Paws.Host.Services.Lazer
 {
     /// <summary>
     /// Manages the connection to the osu!lazer database file using a minimal viable schema (MVS).
@@ -49,21 +54,13 @@ namespace Paws.Host
             return new RealmConfiguration(dbPath)
             {
                 IsReadOnly = readOnly,
-                // CRITICAL: We utilize dynamic access to avoid strict coupling to osu!lazer's internal schema.
-                // Attempting to define a partial schema causes MigrationNeeded exceptions because Realm
-                // expects the class definition to match the full table definition on disk.
-                IsDynamic = true,
-                // SchemaVersion removed to allow dynamic opening of any version
+                IsDynamic = true
             };
         }
 
-        /// <summary>
-        /// Attempts to get a READ-ONLY instance of the Lazer database.
-        /// Safe to use for checking state, but may fail if Lazer is performing exclusive maintenance.
-        /// </summary>
         public Realm? GetSafeReadInstance()
         {
-            var currentLazerPath = _pawsDbService.GetSetting("core.paths.lazer")?.Value;
+            var currentLazerPath = GetLazerBasePath();
             if (string.IsNullOrEmpty(currentLazerPath)) return null;
 
             var dbPath = Path.Combine(currentLazerPath, "client.realm");
@@ -74,44 +71,25 @@ namespace Paws.Host
                 var config = GetLazerConfig(dbPath, readOnly: true);
                 return Realm.GetInstance(config);
             }
-            catch (RealmPermissionDeniedException ex)
-            {
-                _logger.LogWarning("Lazer DB is currently locked by the game (permission denied): {Message}", ex.Message);
-                return null;
-            }
-            catch (RealmException ex)
-            {
-                _logger.LogWarning("Lazer DB access error (possibly locked): {Message}", ex.Message);
-                return null;
-            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to open lazer database in Safe Read mode.");
+                _logger.LogWarning("Lazer DB access error: {Message}", ex.Message);
                 return null;
             }
         }
 
-        /// <summary>
-        /// Gets a WRITEABLE instance. STRICTLY checks if osu! is running first.
-        /// </summary>
         public Realm? GetWriteableInstance()
         {
-            var currentLazerPath = _pawsDbService.GetSetting("core.paths.lazer")?.Value;
+            var currentLazerPath = GetLazerBasePath();
             if (string.IsNullOrEmpty(currentLazerPath)) return null;
 
-            // 1. Process Check
             string processName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "osu!" : "osu";
             if (Process.GetProcessesByName(processName).Any())
             {
                 throw new LazerIsRunningException();
             }
 
-            // 2. Lock File Check (Parity with Lazer's own checks)
             var dbPath = Path.Combine(currentLazerPath, "client.realm");
-            // Note: Realm will handle the lock file check internally, but explicit check
-            // gives a better error if we want to be super safe.
-            // For now, we rely on Process check + try/catch.
-
             if (!File.Exists(dbPath)) return null;
 
             try
@@ -121,9 +99,7 @@ namespace Paws.Host
             }
             catch (RealmMismatchedConfigException ex)
             {
-                throw new LazerAccessConflictException(
-                    "Cannot open Lazer database for writing because it is already open for reading in this process. " +
-                    "Ensure you have disposed your LazerContext (wrapped in 'using') BEFORE calling PerformLazerWriteAsync.", ex);
+                throw new LazerAccessConflictException("Conflict with open read-only stream", ex);
             }
             catch (Exception ex)
             {
@@ -133,4 +109,3 @@ namespace Paws.Host
         }
     }
 }
-

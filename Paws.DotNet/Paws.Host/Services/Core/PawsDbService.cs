@@ -1,10 +1,15 @@
 using Paws.Host.Data;
 using Paws.Host.Data.Schemas;
+using Paws.Core.Abstractions.Models;
 using Realms;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
+using System;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
-namespace Paws.Host
+namespace Paws.Host.Services.Core
 {
     public class PawsDbService
     {
@@ -72,8 +77,8 @@ namespace Paws.Host
 
         public async Task RunWriteAsync(Action<Realm> action)
         {
-             using var realm = Realm.GetInstance(_config);
-             await realm.WriteAsync(() => action(realm));
+            using var realm = Realm.GetInstance(_config);
+            await realm.WriteAsync(() => action(realm));
         }
 
         public IEnumerable<ThemeDto> GetAllThemes()

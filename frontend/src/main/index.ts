@@ -171,6 +171,7 @@ app.whenReady().then(async () => {
 
 			// Construct API URL: http://localhost:5088/api/plugins/{id}/files/{path}
 			const apiUrl = `http://localhost:5088/api/plugins/${pluginId}/files${filePath}`;
+			log.info(`[paws-plugin] Handling request: ${request.url} -> ${apiUrl}`);
 
 			return net.fetch(apiUrl);
 		} catch (error) {

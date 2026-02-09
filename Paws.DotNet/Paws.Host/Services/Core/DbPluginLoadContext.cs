@@ -2,8 +2,12 @@ using System.Reflection;
 using System.Runtime.Loader;
 using Paws.Host.Data.Schemas;
 using Realms;
+using System.IO;
+using System.Linq;
+using System;
+using Microsoft.Extensions.Logging;
 
-namespace Paws.Host
+namespace Paws.Host.Services.Core
 {
     public class DbPluginLoadContext : AssemblyLoadContext
     {
@@ -23,23 +27,15 @@ namespace Paws.Host
 
         protected override Assembly? Load(AssemblyName assemblyName)
         {
-            // 1. Shared Assemblies: Always use the Host's loaded version (Default Context)
-            // This prevents "Type X cannot be cast to Type X" errors and native handle crashes (Realm).
             if (IsSharedAssembly(assemblyName))
             {
-                // Returning null forces the runtime to look in the Default context.
                 return null;
             }
 
-            // 2. Load from Database
             return _dbService.RunRead(realm =>
             {
                 var plugin = realm.Find<Plugin>(_pluginId);
-                if (plugin == null)
-                {
-                   // _logger.LogError("[DbPluginLoadContext] Plugin {_pluginId} not found in DB.", _pluginId);
-                    return null;
-                }
+                if (plugin == null) return null;
 
                 var dllName = $"{assemblyName.Name}.dll";
                 var allFiles = plugin.Files.ToList();
@@ -57,13 +53,8 @@ namespace Paws.Host
                         using var ms = new MemoryStream(fileData);
                         return LoadFromStream(ms);
                     }
-                    else
-                    {
-                         _logger.LogError("[DbPluginLoadContext] ERROR: File content missing for {DllName} ({Hash})", dllName, fileRef.BlobHash);
-                    }
                 }
 
-                // If not found in DB, return null to let runtime resolve it (e.g. system assemblies)
                 return null;
             });
         }
@@ -74,7 +65,7 @@ namespace Paws.Host
             return name == "Paws.Core.Abstractions" ||
                    name == "Realm" ||
                    name == "Realm.PlatformHelpers" ||
-                   name == "Microsoft.AspNetCore.Http.Abstractions" || // Common ASP.NET deps
+                   name == "Microsoft.AspNetCore.Http.Abstractions" ||
                    name == "Newtonsoft.Json";
         }
     }

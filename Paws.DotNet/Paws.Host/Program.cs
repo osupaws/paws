@@ -1,8 +1,21 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Paws.Core.Abstractions;
-using Paws.Host;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using PawsHost = Paws.Core.Abstractions.Interfaces.Services.IHost;
+using Paws.Core.Abstractions.Models;
+using Paws.Host.Services.Core;
+using Paws.Host.Services.Lazer;
+using Paws.Host.Services.Stable;
 using System.Text;
 using System.Text.Json;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.IO;
 
 // Must be registered to support legacy encodings in .osu files.
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -34,40 +47,37 @@ builder.Services.AddSingleton<ThemeImporterService>(); // For importing themes
 builder.Services.AddSingleton<PluginRepositoryService>(); // For the plugin store
 builder.Services.AddSingleton<PluginManager>();
 builder.Services.AddSingleton<PluginInstallerService>();
-builder.Services.AddSingleton<IHostServices, HostServices>();
+builder.Services.AddSingleton<PawsHost, HostServices>();
 builder.Services.AddHostedService<HeartbeatService>(); // Register the heartbeat background service
 builder.Services.AddHttpClient(); // For PluginRepositoryService
 
 var app = builder.Build();
 
 // --- Asynchronous Service Initialization ---
-// --- Asynchronous Service Initialization ---
 var pawsDb = app.Services.GetRequiredService<PawsDbService>();
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
-var hostServices = app.Services.GetRequiredService<IHostServices>(); // Get HostServices for progress logging
+var host = app.Services.GetRequiredService<PawsHost>(); // Get Host for progress logging
 
-hostServices.LogProgress("Initializing Database...", 10);
+host.LogProgress("Initializing Database...", 10);
 try
 {
     await pawsDb.InitializeAsync();
-    hostServices.LogProgress("Database Initialized", 40);
+    host.LogProgress("Database Initialized", 40);
 }
 catch (Exception ex)
 {
     logger.LogCritical(ex, "PawsDbService failed to initialize. The application will now exit.");
-    // Exit gracefully if the main DB can't be opened.
-    // Exit gracefully if the main DB can't be opened.
     return;
 }
 
 // --- Plugin Loading ---
-hostServices.LogProgress("Discovering Plugins...", 50);
+host.LogProgress("Discovering Plugins...", 50);
 var pluginManager = app.Services.GetRequiredService<PluginManager>();
-pluginManager.DiscoverAndLoadPluginsAsync().Wait(); // Loads all active plugins from DB (Sync wait for now to keep startup simple, or await if top-level)
-hostServices.LogProgress("Plugins Loaded", 90);
+pluginManager.DiscoverAndLoadPluginsAsync().Wait();
+host.LogProgress("Plugins Loaded", 90);
 
 logger.LogInformation("Paws.Host C# Backend started successfully.");
-hostServices.LogProgress("Backend Ready", 100);
+host.LogProgress("Backend Ready", 100);
 
 // --- API Endpoints ---
 
@@ -205,7 +215,7 @@ pluginsApi.MapGet("/loaded", (PluginManager pm) =>
     // Return a DTO (Data Transfer Object) to control the data shape.
     var result = pm.GetLoadedPlugins().Select(p =>
     {
-        var manifest = pm.GetAllPlugins().FirstOrDefault(m => m.Id.Equals(p.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+        var manifest = pm.GetAllPlugins().FirstOrDefault(m => m.Id.Equals(p.Id, StringComparison.OrdinalIgnoreCase));
         return new
         {
             p.Id,
@@ -224,7 +234,7 @@ pluginsApi.MapGet("/loaded", (PluginManager pm) =>
 
 pluginsApi.MapGet("/discovered", (PluginManager pm) => Results.Ok(pm.GetAllPlugins()));
 
-pluginsApi.MapPost("/execute/{pluginId}", async (Guid pluginId, [FromBody] ExecuteCommandRequest req, PluginManager pm) =>
+pluginsApi.MapPost("/execute/{pluginId}", async (string pluginId, [FromBody] ExecuteCommandRequest req, PluginManager pm) =>
 {
     var plugin = pm.GetPluginById(pluginId);
     if (plugin == null) return Results.NotFound($"Plugin with ID {pluginId} not found or not loaded.");
@@ -243,23 +253,35 @@ pluginsApi.MapPost("/execute/{pluginId}", async (Guid pluginId, [FromBody] Execu
 
 // Serve plugin UI files (e.g. for paws-plugin protocol)
 // Serve plugin UI files (e.g. for paws-plugin protocol)
-pluginsApi.MapGet("/{pluginId}/files/{*path}", async (string pluginId, string path, PawsDbService db, FileStorageService storage) =>
+pluginsApi.MapGet("/{pluginId}/files/{*path}", async (string pluginId, string path, PawsDbService db, FileStorageService storage, ILogger<Program> logger) =>
 {
+    logger.LogInformation("Serving file: PluginId={PluginId}, Path={Path}", pluginId, path);
     var config = db.GetRealmConfiguration();
     using var realm = Realms.Realm.GetInstance(config);
 
     var plugin = realm.Find<Paws.Host.Data.Schemas.Plugin>(pluginId);
-    if (plugin == null) return Results.NotFound();
+    if (plugin == null)
+    {
+        logger.LogWarning("Plugin not found: {PluginId}", pluginId);
+        return Results.NotFound();
+    }
 
     // Mapping strategy: The Paws UI protocol serves from the 'ui' folder by default.
     // We try to find 'ui/{path}' first, then '{path}'.
     // Using simple linear search for now as file counts per plugin are small.
     var targetPath = path.Replace("\\", "/");
 
+    // Try finding exact match or UI prefix match
     var file = plugin.Files.FirstOrDefault(f => f.VirtualPath.Equals($"ui/{targetPath}", StringComparison.OrdinalIgnoreCase))
             ?? plugin.Files.FirstOrDefault(f => f.VirtualPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase));
 
-    if (file == null) return Results.NotFound();
+    if (file == null)
+    {
+        // Log all available files for debugging
+        var allFiles = string.Join(", ", plugin.Files.Select(f => f.VirtualPath));
+        logger.LogWarning("File not found in plugin manifest. Target: '{Target}', Available: [{Files}]", targetPath, allFiles);
+        return Results.NotFound();
+    }
 
     var fileData = await storage.RetrieveFileAsync(file.BlobHash);
     if (fileData == null) return Results.NotFound();
