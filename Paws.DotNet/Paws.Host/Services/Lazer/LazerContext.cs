@@ -5,9 +5,6 @@ using Paws.Core.Abstractions.Interfaces.Contexts;
 using Paws.Core.Abstractions.Models;
 using Realms;
 using System.IO;
-using OsuParsers.Decoders;
-using OsuParsers.Storyboards;
-using OsuParsers.Storyboards.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Paws.Host.Services.Lazer
@@ -35,7 +32,7 @@ namespace Paws.Host.Services.Lazer
             {
                 try
                 {
-                    result.Add(MapToDto(dynamicSet));
+                    result.Add(LazerBeatmapMapper.MapToDto(dynamicSet));
                 }
                 catch (Exception ex)
                 {
@@ -54,7 +51,7 @@ namespace Paws.Host.Services.Lazer
             if (!Guid.TryParse(id, out var guid)) return null;
 
             var obj = realm.DynamicApi.Find(LazerSchema.BeatmapSet, guid);
-            return obj != null ? MapToDto(obj) : null;
+            return obj != null ? LazerBeatmapMapper.MapToDto(obj) : null;
         }
 
         public string? GetFilePath(string hash)
@@ -249,73 +246,7 @@ namespace Paws.Host.Services.Lazer
                 dynamic? existingSet = realm.DynamicApi.Find(LazerSchema.BeatmapSet, guid);
                 if (existingSet == null) return;
 
-                // Sync basic properties
-                try { existingSet.DeletePending = set.DeletePending; } catch { }
-                try { existingSet.Protected = set.Protected; } catch { }
-
-                // Sync files
-                // 1. Identify files to remove (present in Realm but not in DTO)
-                var filesToRemove = new List<dynamic>();
-                foreach (dynamic existingFileUsage in existingSet.Files)
-                {
-                    bool found = false;
-                    foreach (var dtoFile in set.Files)
-                    {
-                        if (string.Equals(existingFileUsage.Filename, dtoFile.Filename, StringComparison.OrdinalIgnoreCase))
-                        {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found)
-                    {
-                        filesToRemove.Add(existingFileUsage);
-                    }
-                }
-
-                foreach (var fileUsage in filesToRemove)
-                {
-                    existingSet.Files.Remove(fileUsage);
-                }
-
-                // 2. Identify files to add or update (present in DTO)
-                foreach (var dtoFile in set.Files)
-                {
-                    dynamic? existingFileUsage = null;
-                    foreach (dynamic fu in existingSet.Files)
-                    {
-                        if (string.Equals(fu.Filename, dtoFile.Filename, StringComparison.OrdinalIgnoreCase))
-                        {
-                            existingFileUsage = fu;
-                            break;
-                        }
-                    }
-
-                    if (existingFileUsage != null)
-                    {
-                        // Update hash if changed (e.g. background replacement)
-                        if (existingFileUsage.File.Hash != dtoFile.Hash)
-                        {
-                            dynamic? newFile = realm.DynamicApi.Find(LazerSchema.File, dtoFile.Hash);
-                            if (newFile != null)
-                            {
-                                existingFileUsage.File = newFile;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Add new file usage
-                        dynamic? fileRecord = realm.DynamicApi.Find(LazerSchema.File, dtoFile.Hash);
-                        if (fileRecord != null)
-                        {
-                            dynamic newUsage = realm.DynamicApi.CreateObject(LazerSchema.NamedFileUsage);
-                            newUsage.Filename = dtoFile.Filename;
-                            newUsage.File = fileRecord;
-                            existingSet.Files.Add(newUsage);
-                        }
-                    }
-                }
+                LazerBeatmapMapper.ApplyUpdate(existingSet, set, realm);
             });
         }
 
@@ -338,136 +269,21 @@ namespace Paws.Host.Services.Lazer
 
         public List<string> GetStoryboardAssetPaths(string fileHash)
         {
-            var assets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var lazerPath = _dbService.GetLazerBasePath();
             if (string.IsNullOrEmpty(lazerPath)) return new List<string>();
 
-            string folder1 = fileHash.Substring(0, 1);
-            string folder2 = fileHash.Substring(0, 2);
-            string filePath = Path.Combine(lazerPath, "files", folder1, folder2, fileHash);
-
-            if (!System.IO.File.Exists(filePath)) return new List<string>();
+            string? filePath = GetFilePath(fileHash);
+            if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath)) return new List<string>();
 
             try
             {
-                string firstLine = "";
-                using (var reader = new StreamReader(filePath))
-                {
-                    firstLine = reader.ReadLine() ?? "";
-                }
-
-                if (firstLine.StartsWith("osu file format v"))
-                {
-                    var beatmap = OsuParsers.Decoders.BeatmapDecoder.Decode(filePath);
-                    if (!string.IsNullOrEmpty(beatmap.GeneralSection.AudioFilename)) assets.Add(beatmap.GeneralSection.AudioFilename);
-                    if (!string.IsNullOrEmpty(beatmap.EventsSection.BackgroundImage)) assets.Add(beatmap.EventsSection.BackgroundImage);
-                    if (!string.IsNullOrEmpty(beatmap.EventsSection.Video)) assets.Add(beatmap.EventsSection.Video);
-
-                    if (beatmap.EventsSection.Storyboard != null)
-                        ExtractStoryboardAssets(beatmap.EventsSection.Storyboard, assets);
-
-                    foreach (var obj in beatmap.HitObjects)
-                    {
-                        if (obj.Extras != null && !string.IsNullOrEmpty(obj.Extras.SampleFileName))
-                            assets.Add(obj.Extras.SampleFileName);
-                    }
-                }
-                else
-                {
-                    var sb = OsuParsers.Decoders.StoryboardDecoder.Decode(filePath);
-                    ExtractStoryboardAssets(sb, assets);
-                }
+                return LazerStoryboardHelper.GetStoryboardAssetPaths(filePath);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "GetStoryboardAssetPaths: Failed to parse file {Hash}", fileHash);
+                return new List<string>();
             }
-
-            return assets.ToList();
-        }
-
-        private void ExtractStoryboardAssets(OsuParsers.Storyboards.Storyboard sb, HashSet<string> assets)
-        {
-            if (sb == null) return;
-            void ProcessLayer(List<OsuParsers.Storyboards.Interfaces.IStoryboardObject> layer)
-            {
-                if (layer == null) return;
-                foreach (var obj in layer)
-                {
-                    if (!string.IsNullOrEmpty(obj.FilePath)) assets.Add(obj.FilePath);
-                }
-            }
-            ProcessLayer(sb.BackgroundLayer);
-            ProcessLayer(sb.FailLayer);
-            ProcessLayer(sb.PassLayer);
-            ProcessLayer(sb.ForegroundLayer);
-            ProcessLayer(sb.OverlayLayer);
-            ProcessLayer(sb.SamplesLayer);
-        }
-
-        private LazerBeatmapSet MapToDto(dynamic set)
-        {
-            var dto = new LazerBeatmapSet
-            {
-                Id = set.ID.ToString(),
-                Hash = set.Hash,
-                DeletePending = set.DeletePending,
-                Protected = set.Protected,
-                DateAdded = set.DateAdded,
-                Artist = "Unknown",
-                Title = "Unknown",
-            };
-
-            foreach (var map in set.Beatmaps)
-            {
-                var mapDto = new LazerBeatmap
-                {
-                    Id = map.ID.ToString(),
-                    Difficulty = map.DifficultyName,
-                    MD5Hash = map.MD5Hash,
-                    StarRating = map.StarRating,
-                    RulesetID = (int)map.Ruleset.OnlineID
-                };
-
-                if (map.Metadata != null)
-                {
-                    try
-                    {
-                        var metadata = map.Metadata; // Cache dynamic access
-
-                        mapDto.Metadata = new LazerBeatmapMetadata
-                        {
-                            Title = metadata.Title,
-                            TitleUnicode = metadata.TitleUnicode,
-                            Artist = metadata.Artist,
-                            ArtistUnicode = metadata.ArtistUnicode,
-                            // AuthorString is computed in Lazer, in Realm it is Author.Username
-                            AuthorString = ((dynamic)metadata.Author)?.Username ?? "Unknown",
-                            Source = metadata.Source,
-                            Tags = metadata.Tags,
-                            BackgroundFile = metadata.BackgroundFile,
-                            AudioFile = metadata.AudioFile
-                        };
-
-                        // Update set top-level metadata
-                        if (dto.Artist == "Unknown" && !string.IsNullOrEmpty(metadata.Artist)) dto.Artist = metadata.Artist;
-                        if (dto.Title == "Unknown" && !string.IsNullOrEmpty(metadata.Title)) dto.Title = metadata.Title;
-                    }
-                    catch (Exception)
-                    {
-                        // Suppress metadata mapping errors to avoid crashing the whole set
-                    }
-                }
-
-                dto.Beatmaps.Add(mapDto);
-            }
-
-            foreach (var file in set.Files)
-            {
-                dto.Files.Add(new LazerFile { Filename = file.Filename, Hash = file.File.Hash });
-            }
-
-            return dto;
         }
 
         public void Dispose() { }

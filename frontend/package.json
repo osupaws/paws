@@ -1,6 +1,6 @@
 {
 	"name": "paws-app",
-	"version": "0.0.1-pre-alpha",
+	"version": "0.0.1-pre-alpha (LSv51)",
 	"description": "An Electron application with Vue and TypeScript",
 	"main": "./out/main/index.js",
 	"author": "example.com",
