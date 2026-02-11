@@ -14,13 +14,25 @@ const backendApi = {
 };
 // --- END: ADDED CODE ---
 
+const storageApi = {
+	uploadAsset: (filePath: string): Promise<any> =>
+		ipcRenderer.invoke("paws:upload-asset", filePath),
+	uploadTemp: (filePath: string): Promise<any> => ipcRenderer.invoke("paws:upload-temp", filePath),
+	processAsset: (assetId: string, options: any): Promise<any> =>
+		ipcRenderer.invoke("api-post", {
+			endpoint: "/assets/process",
+			body: { assetId, options }
+		})
+};
+
 const api = {
 	electron: electronIpc,
 
 	splash: splashIpc,
 	themes: themesIpc,
 	// --- START: ADDED CODE ---
-	backend: backendApi
+	backend: backendApi,
+	storage: storageApi
 	// --- END: ADDED CODE ---
 };
 

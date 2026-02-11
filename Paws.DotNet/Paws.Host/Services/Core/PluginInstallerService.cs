@@ -5,7 +5,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Paws.Host.Data.Schemas; // Ensure this is using the Schema namespace
+using Paws.Core.Abstractions.Models;
+using Paws.Host.Data.Schemas;
 
 namespace Paws.Host.Services.Core
 {
@@ -36,6 +37,28 @@ namespace Paws.Host.Services.Core
 
             if (manifest == null) throw new InvalidDataException("Failed to parse plugin.json.");
 
+            // --- SECURITY SCAN ---
+            var dllEntry = archive.GetEntry(manifest.EntryPoint);
+            if (dllEntry != null)
+            {
+                using var dllStream = dllEntry.Open();
+                using var ms = new MemoryStream();
+                await dllStream.CopyToAsync(ms);
+                ms.Position = 0; // Reset position for PEReader
+
+                var result = PluginSecurityScanner.Analyze(ms, manifest);
+                if (!result.IsSafe)
+                {
+                    var violations = string.Join("; ", result.Violations);
+                    _logger.LogWarning("Security Block: Plugin {Id} failed static analysis. Violations: {Violations}", manifest.Id, violations);
+                    throw new System.Security.SecurityException($"Plugin failed security scan: {violations}");
+                }
+            }
+            else
+            {
+                _logger.LogWarning("EntryPoint {EntryPoint} not found in the archive for plugin {Id}. Skipping security scan.", manifest.EntryPoint, manifest.Id);
+            }
+
             // 1. Prepare Plugin Entity
             var plugin = new Paws.Host.Data.Schemas.Plugin
             {
@@ -49,24 +72,32 @@ namespace Paws.Host.Services.Core
                 IsActive = true
             };
 
-            // 2. Clear old version first (Transaction 1)
+            // Add permissions
+            if (manifest.Permissions != null)
+            {
+                foreach (var perm in manifest.Permissions)
+                {
+                    plugin.Permissions.Add(perm);
+                }
+            }
+
+            // 2. Clear old version first
             _dbService.RunWrite(realm =>
             {
                 var existing = realm.Find<Paws.Host.Data.Schemas.Plugin>(manifest.Id);
                 if (existing != null)
                 {
-                    // Cascade delete files
                     var files = realm.All<Paws.Host.Data.Schemas.PluginFile>().Where(f => f.Plugin == existing);
-                    realm.RemoveRange(files);
+                    realm.RemoveRange<Paws.Host.Data.Schemas.PluginFile>(files);
                     realm.Remove(existing);
                 }
                 realm.Add(plugin);
             });
 
-            // 3. Process Files (Iterate zip entries)
+            // 3. Process Files
             foreach (var entry in archive.Entries)
             {
-                if (string.IsNullOrEmpty(entry.Name)) continue; // Skip directories if ZipFile returns them as entries (usually empty name)
+                if (string.IsNullOrEmpty(entry.Name) || entry.Name.EndsWith("/")) continue;
 
                 using var stream = entry.Open();
                 using var ms = new MemoryStream();
@@ -76,14 +107,10 @@ namespace Paws.Host.Services.Core
                 var extension = Path.GetExtension(entry.Name).TrimStart('.').ToLowerInvariant();
                 if (string.IsNullOrEmpty(extension)) extension = "dat";
 
-                // Determine content type or just use extension for storage service
-                // Just use extension for now. FileStorageService expects extension for ContentType mapping later if needed.
                 var hash = await _storage.StoreFileAsync(data, extension);
 
-                // Add PluginFile record (Transaction 2 per file, or batch? Batch is better but simple for now)
                 _dbService.RunWrite(realm =>
                 {
-                    // Re-fetch plugin in this transaction context
                     var p = realm.Find<Paws.Host.Data.Schemas.Plugin>(manifest.Id);
                     if (p != null)
                     {

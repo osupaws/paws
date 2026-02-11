@@ -12,6 +12,7 @@ import { existsSync } from "fs";
 import { join, normalize } from "path";
 import { pathToFileURL } from "url";
 
+app.setPath("userData", join(app.getPath("appData"), "Paws", "Frontend"));
 app.name = "Paws"; // Set the application name for AppData paths
 
 // Linter Fix: Add async return type Promise<any>
@@ -45,6 +46,60 @@ ipcMain.handle("api-post", (_event, { endpoint, body }): Promise<any> => {
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(body)
 	});
+});
+
+ipcMain.handle("paws:upload-asset", async (_event, filePath: string): Promise<any> => {
+	try {
+		const fs = await import("fs");
+		const buffer = fs.readFileSync(filePath);
+		const fileName = (await import("path")).basename(filePath);
+
+		const formData = new FormData();
+		// @ts-ignore (Electron fetch accepts Blob/Buffer in FormData)
+		formData.append("file", new Blob([buffer]), fileName);
+
+		const response = await net.fetch(`http://localhost:${BACKEND_PORT}/api/assets/upload`, {
+			method: "POST",
+			body: formData
+		});
+
+		if (!response.ok) {
+			const text = await response.text();
+			throw new Error(text || `Upload failed with status ${response.status}`);
+		}
+
+		return await response.json();
+	} catch (error) {
+		log.error("Asset upload IPC error:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("paws:upload-temp", async (_event, filePath: string): Promise<any> => {
+	try {
+		const fs = await import("fs");
+		const buffer = fs.readFileSync(filePath);
+		const fileName = (await import("path")).basename(filePath);
+
+		const formData = new FormData();
+		// @ts-ignore (Electron fetch accepts Blob/Buffer in FormData)
+		formData.append("file", new Blob([buffer]), fileName);
+
+		const response = await net.fetch(`http://localhost:${BACKEND_PORT}/api/storage/upload-temp`, {
+			method: "POST",
+			body: formData
+		});
+
+		if (!response.ok) {
+			const text = await response.text();
+			throw new Error(text || `Temp upload failed with status ${response.status}`);
+		}
+
+		return await response.json();
+	} catch (error) {
+		log.error("Temp upload IPC error:", error);
+		throw error;
+	}
 });
 
 // Register schemes as privileged to allow fetch API, service workers, and bypass CSP for local resources if needed.

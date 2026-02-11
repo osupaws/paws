@@ -1,5 +1,7 @@
 using Paws.Core.Abstractions.Interfaces;
+using Paws.Core.Abstractions.Models;
 using PawsHost = Paws.Core.Abstractions.Interfaces.Services.IHost;
+using PawsLogger = Paws.Core.Abstractions.Interfaces.Services.ILogger;
 using Paws.Host.Data.Schemas;
 using System.Reflection;
 using System.Runtime.Loader;
@@ -16,7 +18,7 @@ namespace Paws.Host.Services.Core
     public class PluginManager
     {
         private readonly Dictionary<string, IPawsPlugin> _loadedPlugins = new();
-        private readonly PawsHost _host;
+        private readonly HostServices _globalHost;
         private readonly ILogger<PluginManager> _logger;
         private readonly PawsDbService _dbService;
         private readonly FileStorageService _storage;
@@ -25,7 +27,7 @@ namespace Paws.Host.Services.Core
 
         public PluginManager(PawsHost host, ILogger<PluginManager> logger, PawsDbService dbService, FileStorageService storage)
         {
-            _host = host;
+            _globalHost = (HostServices)host;
             _logger = logger;
             _dbService = dbService;
             _storage = storage;
@@ -82,7 +84,24 @@ namespace Paws.Host.Services.Core
                 {
                     try
                     {
-                        await pluginInstance.Initialize(_host);
+                        var osuPath = _dbService.GetSetting("osu.path")?.Value ?? string.Empty;
+
+                        // Create contextual services for this plugin
+                        // Use _globalHost as it implements PawsLogger
+                        var storage = new StorageService(plugin.Id, plugin.Permissions.ToList(), osuPath, (PawsLogger)_globalHost);
+                        var image = new ImageProcessorService(storage);
+
+                        // Create contextual host
+                        var pluginHost = new PluginHost(
+                            (PawsLogger)_globalHost,
+                            ((PawsHost)_globalHost).Lazer,
+                            ((PawsHost)_globalHost).Stable,
+                            storage,
+                            image,
+                            () => _globalHost.IsLegacyMode
+                        );
+
+                        await pluginInstance.Initialize((PawsHost)pluginHost);
                         _loadedPlugins[plugin.Id] = pluginInstance;
                         _pluginContexts[plugin.Id] = context;
                         _logger.LogInformation("Successfully loaded plugin: {Name} (v{Version})", pluginInstance.Name, pluginInstance.Version);
@@ -108,9 +127,18 @@ namespace Paws.Host.Services.Core
             return _dbService.RunRead(realm =>
             {
                 return realm.All<Plugin>().ToList().Select(p =>
-                    new PluginManifest(p.Id, p.Name, p.Version, p.EntryPoint, p.Author, p.Description,
-                        string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiManifest(p.UiEntry),
-                        p.IconData, p.Permissions.ToList(), p.Provides.ToList(), p.Consumes.ToList(), p.IsActive)
+                    new PluginManifest
+                    {
+                        Id = p.Id,
+                        Name = p.Name,
+                        Version = p.Version,
+                        EntryPoint = p.EntryPoint,
+                        Author = p.Author,
+                        Description = p.Description,
+                        Permissions = p.Permissions.ToList(),
+                        IsActive = p.IsActive,
+                        Ui = string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiInfo { Entry = p.UiEntry }
+                    }
                 ).ToList();
             });
         }
@@ -128,8 +156,4 @@ namespace Paws.Host.Services.Core
 
         public IPawsPlugin? GetPluginById(string pluginId) => _loadedPlugins.Values.FirstOrDefault(p => p.Id == pluginId);
     }
-
-    public record PluginManifest(string Id, string Name, string Version, string EntryPoint, string? Author, string? Description,
-        PluginUiManifest? Ui, string? Icon, List<string>? Permissions = null, List<string>? Provides = null, List<string>? Consumes = null, bool IsActive = true);
-    public record PluginUiManifest(string Entry);
 }

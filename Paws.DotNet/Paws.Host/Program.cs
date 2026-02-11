@@ -9,6 +9,8 @@ using Paws.Core.Abstractions.Models;
 using Paws.Host.Services.Core;
 using Paws.Host.Services.Lazer;
 using Paws.Host.Services.Stable;
+using Paws.Core.Abstractions.Interfaces.Services;
+using Paws.Core.Abstractions.Enums;
 using System.Text;
 using System.Text.Json;
 using System;
@@ -47,6 +49,22 @@ builder.Services.AddSingleton<ThemeImporterService>(); // For importing themes
 builder.Services.AddSingleton<PluginRepositoryService>(); // For the plugin store
 builder.Services.AddSingleton<PluginManager>();
 builder.Services.AddSingleton<PluginInstallerService>();
+
+// Register a dedicated system logger to break the circular dependency between HostServices and StorageService.
+builder.Services.AddSingleton<Paws.Core.Abstractions.Interfaces.Services.ILogger>(sp =>
+    new PawsSystemLogger(sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Program>>()));
+
+// Register System-level Storage and Image services
+builder.Services.AddSingleton<Paws.Core.Abstractions.Interfaces.Services.IStorageService>(sp =>
+{
+    var pawsDb = sp.GetRequiredService<PawsDbService>();
+    var pawsLogger = sp.GetRequiredService<Paws.Core.Abstractions.Interfaces.Services.ILogger>();
+    var osuPath = pawsDb.GetSetting("osu.path")?.Value ?? string.Empty;
+    // Permissions: "filesystem-ext" for system (Frontend has full access)
+    return new StorageService("System", new List<string> { "filesystem-ext" }, osuPath, pawsLogger);
+});
+builder.Services.AddSingleton<Paws.Core.Abstractions.Interfaces.Services.IImageProcessor, ImageProcessorService>();
+
 builder.Services.AddSingleton<PawsHost, HostServices>();
 builder.Services.AddHostedService<HeartbeatService>(); // Register the heartbeat background service
 builder.Services.AddHttpClient(); // For PluginRepositoryService
@@ -58,11 +76,11 @@ var pawsDb = app.Services.GetRequiredService<PawsDbService>();
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 var host = app.Services.GetRequiredService<PawsHost>(); // Get Host for progress logging
 
-host.LogProgress("Initializing Database...", 10);
+host.Logger.LogProgress("Initializing Database...", 10);
 try
 {
     await pawsDb.InitializeAsync();
-    host.LogProgress("Database Initialized", 40);
+    host.Logger.LogProgress("Database Initialized", 40);
 }
 catch (Exception ex)
 {
@@ -71,13 +89,13 @@ catch (Exception ex)
 }
 
 // --- Plugin Loading ---
-host.LogProgress("Discovering Plugins...", 50);
+host.Logger.LogProgress("Discovering Plugins...", 50);
 var pluginManager = app.Services.GetRequiredService<PluginManager>();
 pluginManager.DiscoverAndLoadPluginsAsync().Wait();
-host.LogProgress("Plugins Loaded", 90);
+host.Logger.LogProgress("Plugins Loaded", 90);
 
 logger.LogInformation("Paws.Host C# Backend started successfully.");
-host.LogProgress("Backend Ready", 100);
+host.Logger.LogProgress("Backend Ready", 100);
 
 // --- API Endpoints ---
 
@@ -182,8 +200,71 @@ settingsApi.MapPost("", ([FromBody] UpdateSettingRequest req, PawsDbService db) 
     return Results.Ok();
 });
 
+// --- Asset Management Endpoints ---
+var assetsApi = api.MapGroup("/assets");
 
-// --- Plugin Management Endpoints ---
+assetsApi.MapPost("/upload", async (HttpRequest request, PawsHost host, ILogger<Program> logger) =>
+{
+    try
+    {
+        if (!request.HasFormContentType) return Results.BadRequest("Multipart form required.");
+        var form = await request.ReadFormAsync();
+        var file = form.Files.FirstOrDefault();
+        if (file == null) return Results.BadRequest("No file uploaded.");
+
+        using var stream = file.OpenReadStream();
+        var ext = Path.GetExtension(file.FileName).TrimStart('.');
+        var assetId = await host.Storage.StoreAssetAsync(stream, ext);
+
+        return Results.Ok(new { AssetId = assetId });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Asset upload failed.");
+        return Results.Problem(ex.Message);
+    }
+});
+
+assetsApi.MapGet("/{assetId}", (string assetId, PawsHost host) =>
+{
+    try
+    {
+        var stream = host.Storage.GetAssetStream(assetId);
+        // We don't store MIME type, so we default to octet-stream and let the browser sniff or the UI handle it.
+        return Results.Stream(stream, "application/octet-stream");
+    }
+    catch (FileNotFoundException)
+    {
+        return Results.NotFound();
+    }
+});
+assetsApi.MapPost("/process", async ([FromBody] ProcessAssetRequest req, PawsHost host, ILogger<Program> logger) =>
+{
+    try
+    {
+        var resultStream = await host.Image.ProcessAssetAsync(req.AssetId, req.Options);
+        return Results.Stream(resultStream, "image/jpeg"); // Default to JPEG for now
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Image processing failed for asset {AssetId}", req.AssetId);
+        return Results.Problem(ex.Message);
+    }
+});
+
+var storageApi = api.MapGroup("/storage");
+storageApi.MapPost("/upload-temp", async (HttpRequest request, PawsHost host) =>
+{
+    if (!request.HasFormContentType) return Results.BadRequest("Multipart form required.");
+    var form = await request.ReadFormAsync();
+    var file = form.Files.FirstOrDefault();
+    if (file == null) return Results.BadRequest("No file uploaded.");
+
+    using var stream = file.OpenReadStream();
+    var handle = await host.Storage.StoreTempAsync(stream);
+    return Results.Ok(new { TempHandle = handle });
+});
+
 var pluginsApi = api.MapGroup("/plugins");
 
 pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, PluginInstallerService installer, PluginManager pm, ILogger<Program> logger) =>
@@ -226,7 +307,8 @@ pluginsApi.MapGet("/loaded", (PluginManager pm) =>
             manifest?.Permissions,
             manifest?.Provides,
             manifest?.Consumes,
-            Ui = manifest?.Ui
+            Ui = manifest?.Ui,
+            isActive = true
         };
     });
     return Results.Ok(result);
@@ -278,7 +360,7 @@ pluginsApi.MapGet("/{pluginId}/files/{*path}", async (string pluginId, string pa
     if (file == null)
     {
         // Log all available files for debugging
-        var allFiles = string.Join(", ", plugin.Files.Select(f => f.VirtualPath));
+        var allFiles = string.Join(", ", plugin.Files.ToList().Select(f => f.VirtualPath));
         logger.LogWarning("File not found in plugin manifest. Target: '{Target}', Available: [{Files}]", targetPath, allFiles);
         return Results.NotFound();
     }
@@ -330,3 +412,15 @@ public record UpdateConfigRequest(bool? IsLegacyMode, string? StablePath, string
 public record UpdateSettingRequest(string Key, string Value, string Type = "string");
 public record InstallPluginRequest(string FilePath);
 public record TogglePluginRequest(string Id, bool IsActive);
+public record ProcessAssetRequest(string AssetId, ImageProcessOptions Options);
+
+// Simple logger implementation to satisfy Paws interfaces without circular dependencies in DI.
+public class PawsSystemLogger : Paws.Core.Abstractions.Interfaces.Services.ILogger
+{
+    private readonly Microsoft.Extensions.Logging.ILogger _logger;
+    public PawsSystemLogger(Microsoft.Extensions.Logging.ILogger logger) => _logger = logger;
+    public void LogMessage(string message, PawsLogLvl level, string? pluginName)
+        => _logger.Log((Microsoft.Extensions.Logging.LogLevel)level, "[{Plugin}] {Message}", pluginName ?? "System", message);
+    public void LogProgress(string message, double percent)
+        => _logger.LogInformation("[Progress {Percent}%] {Message}", percent, message);
+}

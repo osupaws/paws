@@ -21,9 +21,9 @@ namespace Paws.Host.Services.Core
             _logger = logger;
 
             var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            var pawsDir = Path.Combine(appData, "Paws");
-            Directory.CreateDirectory(pawsDir);
-            var dbPath = Path.Combine(pawsDir, "paws.realm");
+            var hostDataDir = Path.Combine(appData, "Paws", "Host", "Data");
+            if (!Directory.Exists(hostDataDir)) Directory.CreateDirectory(hostDataDir);
+            var dbPath = Path.Combine(hostDataDir, "paws.realm");
 
             _config = new RealmConfiguration(dbPath)
             {
