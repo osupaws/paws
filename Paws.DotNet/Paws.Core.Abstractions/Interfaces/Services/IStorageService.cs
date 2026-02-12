@@ -77,6 +77,11 @@ namespace Paws.Core.Abstractions.Interfaces.Services
         /// </summary>
         string[] GetDirectories(string path, string searchPattern = "*", SearchOption searchOption = SearchOption.TopDirectoryOnly);
         /// <summary>
+        /// Stores a file at the given source path into the shared temporary storage by copying it and returns a handle.
+        /// </summary>
+        Task<string> StoreTempByPathAsync(string sourcePath);
+
+        /// <summary>
         /// Stores a stream in the shared temporary storage and returns a handle.
         /// </summary>
         Task<string> StoreTempAsync(Stream stream);

@@ -154,8 +154,23 @@ async function handleMessageFromIframe(event: MessageEvent): Promise<void> {
 			result = await window.api.backend.post(payload.endpoint, payload.body);
 		} else if (channel === "get") {
 			result = await window.api.backend.get(payload);
+		} else if (channel === "storage") {
+			// Routes to the storage API (uploadAsset, uploadTemp, uploadTempPath, processAsset)
+			const method = payload.method as keyof typeof window.api.storage;
+			if (typeof window.api.storage[method] === "function") {
+				// @ts-ignore (dynamic call)
+				result = await window.api.storage[method](payload.arg);
+			} else {
+				throw new Error(`Storage method ${method} not found.`);
+			}
+		} else if (channel === "show-open-dialog") {
+			result = await window.api.electron.showOpenDialog(payload);
+		} else if (channel === "restart-app") {
+			result = await window.api.electron.restartApp();
+		} else if (channel === "resize-window") {
+			result = await window.api.electron.resizeWindow(payload.isCompact);
 		} else {
-			// Handle other channels if needed in the future
+			console.warn(`[Content.vue] Unknown channel from iframe: ${channel}`, payload);
 			throw new Error(`Unknown channel: ${channel}`);
 		}
 

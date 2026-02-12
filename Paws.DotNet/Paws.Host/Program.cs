@@ -265,6 +265,13 @@ storageApi.MapPost("/upload-temp", async (HttpRequest request, PawsHost host) =>
     return Results.Ok(new { TempHandle = handle });
 });
 
+storageApi.MapPost("/upload-temp-path", async ([FromBody] StoragePathRequest req, PawsHost host) =>
+{
+    if (string.IsNullOrEmpty(req.Path)) return Results.BadRequest("Path is required.");
+    var handle = await host.Storage.StoreTempByPathAsync(req.Path);
+    return Results.Ok(new { TempHandle = handle });
+});
+
 var pluginsApi = api.MapGroup("/plugins");
 
 pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, PluginInstallerService installer, PluginManager pm, ILogger<Program> logger) =>
@@ -412,6 +419,7 @@ public record UpdateConfigRequest(bool? IsLegacyMode, string? StablePath, string
 public record UpdateSettingRequest(string Key, string Value, string Type = "string");
 public record InstallPluginRequest(string FilePath);
 public record TogglePluginRequest(string Id, bool IsActive);
+public record StoragePathRequest(string Path);
 public record ProcessAssetRequest(string AssetId, ImageProcessOptions Options);
 
 // Simple logger implementation to satisfy Paws interfaces without circular dependencies in DI.

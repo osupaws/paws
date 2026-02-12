@@ -75,15 +75,11 @@ ipcMain.handle("paws:upload-asset", async (_event, filePath: string): Promise<an
 	}
 });
 
-ipcMain.handle("paws:upload-temp", async (_event, filePath: string): Promise<any> => {
+ipcMain.handle("paws:upload-temp", async (_event, uint8Array: Uint8Array): Promise<any> => {
 	try {
-		const fs = await import("fs");
-		const buffer = fs.readFileSync(filePath);
-		const fileName = (await import("path")).basename(filePath);
-
 		const formData = new FormData();
 		// @ts-ignore (Electron fetch accepts Blob/Buffer in FormData)
-		formData.append("file", new Blob([buffer]), fileName);
+		formData.append("file", new Blob([uint8Array]), "ui-upload.bin");
 
 		const response = await net.fetch(`http://localhost:${BACKEND_PORT}/api/storage/upload-temp`, {
 			method: "POST",
@@ -98,6 +94,29 @@ ipcMain.handle("paws:upload-temp", async (_event, filePath: string): Promise<any
 		return await response.json();
 	} catch (error) {
 		log.error("Temp upload IPC error:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("paws:upload-temp-path", async (_event, filePath: string): Promise<any> => {
+	try {
+		const response = await net.fetch(
+			`http://localhost:${BACKEND_PORT}/api/storage/upload-temp-path`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path: filePath })
+			}
+		);
+
+		if (!response.ok) {
+			const text = await response.text();
+			throw new Error(text || `Path upload failed with status ${response.status}`);
+		}
+
+		return await response.json();
+	} catch (error) {
+		log.error("Path upload IPC error:", error);
 		throw error;
 	}
 });

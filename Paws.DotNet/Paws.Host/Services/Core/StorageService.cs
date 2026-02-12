@@ -84,6 +84,22 @@ namespace Paws.Host.Services.Core
         public string GetPluginDataPath() => _baseDataPath;
         public string GetPluginTempPath() => _baseTempPath;
 
+        public async Task<string> StoreTempByPathAsync(string sourcePath)
+        {
+            if (!File.Exists(sourcePath)) throw new FileNotFoundException("Source file not found", sourcePath);
+
+            var handle = Guid.NewGuid().ToString("N");
+            var path = Path.Combine(_globalTempPath, handle);
+
+            using (var sourceStream = File.OpenRead(sourcePath))
+            using (var destStream = File.Create(path))
+            {
+                await sourceStream.CopyToAsync(destStream);
+            }
+
+            return handle;
+        }
+
         public async Task<string> StoreTempAsync(Stream stream)
         {
             var handle = Guid.NewGuid().ToString("N");

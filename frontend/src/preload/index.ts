@@ -17,7 +17,10 @@ const backendApi = {
 const storageApi = {
 	uploadAsset: (filePath: string): Promise<any> =>
 		ipcRenderer.invoke("paws:upload-asset", filePath),
-	uploadTemp: (filePath: string): Promise<any> => ipcRenderer.invoke("paws:upload-temp", filePath),
+	uploadTemp: (data: ArrayBuffer | Uint8Array): Promise<any> =>
+		ipcRenderer.invoke("paws:upload-temp", new Uint8Array(data)),
+	uploadTempPath: (filePath: string): Promise<any> =>
+		ipcRenderer.invoke("paws:upload-temp-path", filePath),
 	processAsset: (assetId: string, options: any): Promise<any> =>
 		ipcRenderer.invoke("api-post", {
 			endpoint: "/assets/process",

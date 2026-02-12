@@ -106,7 +106,14 @@
 		setStoreValue: (key, value) => request("set-store-value", { key, value }),
 		showOpenDialog: options => request("show-open-dialog", options),
 		restartApp: () => request("restart-app"),
-		resizeWindow: isCompact => request("resize-window", { isCompact }),
+
+		storage: {
+			uploadAsset: filePath => request("storage", { method: "uploadAsset", arg: filePath }),
+			uploadTemp: buffer => request("storage", { method: "uploadTemp", arg: buffer }),
+			uploadTempPath: filePath => request("storage", { method: "uploadTempPath", arg: filePath }),
+			processAsset: (assetId, options) =>
+				request("storage", { method: "processAsset", arg: { assetId, options } })
+		},
 
 		// Method for the plugin UI to listen for notices from the main app
 		onNotice: callback => {
@@ -118,6 +125,20 @@
 		// For sending a one-way notification to the parent renderer
 		notifyParent: (noticeType, payload) => {
 			window.parent.postMessage({ channel: "notice-from-frame", noticeType, payload }, "*");
+		}
+	};
+
+	// Alias for compatibility with main renderer API
+	window.api = {
+		backend: {
+			get: window.paws.get,
+			post: window.paws.post
+		},
+		storage: window.paws.storage,
+		electron: {
+			showOpenDialog: window.paws.showOpenDialog,
+			restartApp: window.paws.restartApp,
+			resizeWindow: window.paws.resizeWindow
 		}
 	};
 })();
