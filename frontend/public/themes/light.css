@@ -39,6 +39,7 @@
 
 		/* Fonts */
 		--paws-font-primary: "Wix Madefor Display", system-ui, sans-serif;
+		--paws-font-mono: "Azeret Mono", monospace;
 
 		--paws-font-weight-light: 450;
 		--paws-font-weight-normal: 550;

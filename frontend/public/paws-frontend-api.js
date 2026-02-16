@@ -35,9 +35,34 @@
 
 				const isInitial = notice.initial || false;
 
+				const ensureLink = (id, hrefPattern) => {
+					let link = document.getElementById(id);
+					// If not found by ID, try to find by partial href (in case it was hardcoded in HTML)
+					if (!link && hrefPattern) {
+						link = Array.from(document.getElementsByTagName("link")).find(l =>
+							l.href.includes(hrefPattern)
+						);
+						if (link) link.id = id; // Give it the ID so we find it next time
+					}
+
+					if (!link) {
+						link = document.createElement("link");
+						link.id = id;
+						link.rel = "stylesheet";
+						document.head.appendChild(link);
+					}
+					return link;
+				};
+
 				const applyTheme = () => {
-					// We need to re-derive baseThemeInfo based on themeState for this iframe's context
-					// since the original notice.theme only contains the active theme's info.
+					const themeBaseLink = ensureLink("paws-theme-base-link", "paws-theme-base.css");
+					const baseLink = ensureLink("paws-theme-link", "themes/");
+					const customLink = ensureLink("paws-theme-custom-link", "paws-theme://");
+
+					// Ensure base rendering styles are always loaded
+					const newBaseHref = `paws-app://paws-theme-base.css?v=${timestamp}`;
+					if (themeBaseLink.href !== newBaseHref) themeBaseLink.href = newBaseHref;
+
 					const baseThemeInfo = themeState.availableThemes.find(
 						t => t.id === `paws-${activeThemeInfo.base}`
 					);

@@ -113,7 +113,7 @@ export const startBackend = (): void => {
 				splashSendStatusUpdate("Backend services started.");
 
 				// Force 100% in case we missed it
-				splashSendProgressUpdate({ percent: 100, message: "Ready" });
+				splashSendProgressUpdate({ percent: 100, message: "osi" });
 
 				// Start Watchdog
 				heartbeatTimer = setInterval(checkHeartbeat, 1000);

@@ -17,7 +17,8 @@ namespace Paws.Host.Services.Core
 
         private string GetStorageDir()
         {
-            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "storage", "files");
+            var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var path = Path.Combine(appData, "Paws", "Host", "Data", "Storage");
             if (!Directory.Exists(path)) Directory.CreateDirectory(path);
             return path;
         }
