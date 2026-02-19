@@ -1,10 +1,16 @@
 <!-- frontend/src/renderer/src/components/regions/Content/Content.vue -->
 <script setup lang="ts">
 import { openSettings } from "@renderer/state/modal.state";
-import { fetchPlugins, pluginState } from "@renderer/state/plugin.state";
+import {
+	ensurePluginRunning,
+	fetchPlugins,
+	pluginState,
+	setPluginReady,
+	setPluginUiState
+} from "@renderer/state/plugin.state";
 import { setLegacyMode, settingsState } from "@renderer/state/settings.state";
 import { importTheme, themeState } from "@renderer/state/theme.state";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 
 const handleImportTheme = async (): Promise<void> => {
 	const result = await window.api.electron.showOpenDialog({
@@ -53,30 +59,23 @@ const handleOpenSettings = (): void => {
 	openSettings();
 };
 
-const iframeRef = ref<HTMLIFrameElement | null>(null);
+// Map of iframe refs: pluginId -> HTMLIFrameElement
+const iframeRefs = ref<Map<string, HTMLIFrameElement>>(new Map());
+// Set of plugins currently fading out their spinner
+const fadingPlugins = ref(new Set<string>());
 
-// Calculate the iframe source based on the active plugin
-const pluginSrc = computed(() => {
-	console.log("[Content.vue] Recalculating pluginSrc. ActiveID:", pluginState.activePluginId);
-	if (!pluginState.activePluginId) return "";
-	const plugin = pluginState.loadedPlugins.find(p => p.id === pluginState.activePluginId);
-	console.log("[Content.vue] Found plugin:", plugin);
-	if (!plugin || !plugin.ui) {
-		console.warn("[Content.vue] Plugin has no UI or not found.");
-		return "";
+const setIframeRef = (el: any, id: string): void => {
+	if (el) {
+		iframeRefs.value.set(id, el as HTMLIFrameElement);
+	} else {
+		iframeRefs.value.delete(id);
 	}
+};
 
-	// Custom protocol paws-plugin://[plugin-id]/[entry]?pluginId=[id]
-	// Plugins often expect their own ID in the query params to work with the API
-	const src = `paws-plugin://${plugin.id}/${plugin.ui.entry}?pluginId=${plugin.id}`;
-	console.log("[Content.vue] Generated SRC:", src);
-	return src;
-});
+// ... (postThemeToIframe, postModeToIframe, notifyLifecycle unchanged) ...
 
 function postThemeToIframe(iframe: HTMLIFrameElement, isInitial = false): void {
-	// We must send a plain, clonable object, not a Vue Proxy object.
 	const plainThemeState = JSON.parse(JSON.stringify(themeState));
-
 	iframe.contentWindow?.postMessage(
 		{
 			channel: "notice",
@@ -90,78 +89,131 @@ function postThemeToIframe(iframe: HTMLIFrameElement, isInitial = false): void {
 	);
 }
 
-// --- Message Sending (Parent -> Iframe) ---
-watch(iframeRef, iframe => {
-	if (iframe) {
-		iframe.addEventListener("load", () => {
-			// Once the iframe is loaded, send the initial mode and theme.
-			iframe.contentWindow?.postMessage(
-				{
-					channel: "notice",
-					payload: {
-						type: "mode-changed",
-						mode: settingsState.isLegacyMode ? "stable" : "lazer"
-					}
-				},
-				"*"
-			);
-			postThemeToIframe(iframe, true); // Send initial theme without animation
-		});
-	}
-});
+function postModeToIframe(iframe: HTMLIFrameElement): void {
+	iframe.contentWindow?.postMessage(
+		{
+			channel: "notice",
+			payload: {
+				type: "mode-changed",
+				mode: settingsState.isLegacyMode ? "stable" : "lazer"
+			}
+		},
+		"*"
+	);
+}
 
-// Watch for changes in the active theme and notify the iframe
+// Lifecycle: Focus/Blur
+function notifyLifecycle(pluginId: string, event: "focus" | "blur"): void {
+	const iframe = iframeRefs.value.get(pluginId);
+	if (iframe) {
+		iframe.contentWindow?.postMessage(
+			{
+				channel: "lifecycle",
+				payload: { event }
+			},
+			"*"
+		);
+	}
+	// Notify Backend
+	setPluginUiState(pluginId, event === "focus");
+}
+
+// ... (watchers unchanged) ...
+
+// Watch active plugin to trigger focus/blur and ensure running
+watch(
+	() => pluginState.activePluginId,
+	(newId, oldId) => {
+		console.log(`[Content.vue] Active Plugin Changed: ${oldId} -> ${newId}`);
+
+		if (oldId) {
+			notifyLifecycle(oldId, "blur");
+		}
+
+		if (newId) {
+			ensurePluginRunning(newId);
+			// Focus will be sent after iframe loads if it's new,
+			// or immediately if already running.
+			// We delay slightly to ensure v-show has updated if needed,
+			// though for 'focus' event logic it's less critical than rendering.
+			setTimeout(() => {
+				notifyLifecycle(newId, "focus");
+			}, 0);
+		}
+	},
+	{ immediate: true }
+);
+
+// Watch for changes in theme/mode to broadcast to ALL running plugins
 watch(
 	() => themeState.activeThemeId,
 	() => {
-		if (iframeRef.value) {
-			postThemeToIframe(iframeRef.value, false); // Send theme update with animation
-		}
+		iframeRefs.value.forEach(iframe => postThemeToIframe(iframe, false));
 	}
 );
 
-// Watch for changes in Legacy Mode and notify the iframe
 watch(
 	() => settingsState.isLegacyMode,
-	isLegacy => {
-		if (iframeRef.value) {
-			iframeRef.value.contentWindow?.postMessage(
-				{
-					channel: "notice",
-					payload: {
-						type: "mode-changed",
-						mode: isLegacy ? "stable" : "lazer"
-					}
-				},
-				"*"
-			);
-		}
+	() => {
+		iframeRefs.value.forEach(iframe => postModeToIframe(iframe));
 	}
 );
 
 // --- Message Receiving (Iframe -> Parent) ---
 async function handleMessageFromIframe(event: MessageEvent): Promise<void> {
-	// Basic validation
-	if (event.source !== iframeRef.value?.contentWindow) return;
-	const { channel, id, payload } = event.data;
-	if (!channel || id === undefined) return;
+	// Find which plugin sent this message
+	const senderEntry = Array.from(iframeRefs.value.entries()).find(
+		// eslint-disable-next-line @typescript-eslint/no-unused-vars
+		([_id, frame]) => frame.contentWindow === event.source
+	);
 
+	if (!senderEntry) return; // Message not from our plugins
+
+	const [senderId, senderFrame] = senderEntry;
+	const { channel, id, payload } = event.data;
+
+	if (!channel) return;
+
+	// Handle "Ready" signal
+	if (channel === "paws:client-ready") {
+		console.log(`[Content.vue] Plugin ${senderId} is READY`);
+
+		// Initialize state for the new plugin immediately so it can render while hidden
+		postThemeToIframe(senderFrame, true);
+		postModeToIframe(senderFrame);
+
+		// Start fade-out effect immediately
+		fadingPlugins.value.add(senderId);
+
+		// Delay showing the plugin to allow styles/animations to settle (Zero-Flash)
+		// and to allow the fade-out to complete
+		setTimeout(() => {
+			setPluginReady(senderId);
+			fadingPlugins.value.delete(senderId);
+
+			// If it's the active one, ensure it gets focus
+			if (pluginState.activePluginId === senderId) {
+				notifyLifecycle(senderId, "focus");
+			}
+		}, 300);
+		return;
+	}
+
+	if (id === undefined) return; // Expecting RPC style for other channels
+	// ... (rest of RPC logic unchanged) ...
 	try {
 		let result: any;
-		// Route the request from the iframe to the correct main process IPC handler
-		// The `window.api` object is exposed by the preload script.
 		if (channel === "post") {
 			result = await window.api.backend.post(payload.endpoint, payload.body);
 		} else if (channel === "get") {
 			result = await window.api.backend.get(payload);
 		} else if (channel === "storage") {
-			// Routes to the storage API (uploadAsset, uploadTemp, uploadTempPath, processAsset)
 			const method = payload.method as keyof typeof window.api.storage;
 			if (typeof window.api.storage[method] === "function") {
-				// @ts-ignore (dynamic call)
+				// @ts-ignore: Dynamic method call on storage API
 				result = await window.api.storage[method](payload.arg);
 			} else {
-				throw new Error(`Storage method ${method} not found.`);
+				throw new Error(`Storage method ${String(method)} not found.`);
 			}
 		} else if (channel === "show-open-dialog") {
 			result = await window.api.electron.showOpenDialog(payload);
@@ -174,18 +226,16 @@ async function handleMessageFromIframe(event: MessageEvent): Promise<void> {
 			throw new Error(`Unknown channel: ${channel}`);
 		}
 
-		// Send the result back to the iframe
-		iframeRef.value?.contentWindow?.postMessage({ id, result }, "*");
+		senderFrame.contentWindow?.postMessage({ id, result }, "*");
 	} catch (error) {
-		// If an error occurs, send it back to the iframe to reject the promise
 		const errorMessage = error instanceof Error ? error.message : String(error);
-		iframeRef.value?.contentWindow?.postMessage({ id, error: errorMessage }, "*");
+		// Ensure id is a string to avoid symbol conversion errors
+		senderFrame.contentWindow?.postMessage({ id: String(id), error: errorMessage }, "*");
 	}
 }
 
 onMounted(async () => {
 	window.addEventListener("message", handleMessageFromIframe);
-	// Fetch plugins on mount
 	await fetchPlugins();
 });
 
@@ -196,14 +246,33 @@ onUnmounted(() => {
 
 <template>
 	<div class="content-container">
-		<iframe
-			v-if="pluginSrc"
-			ref="iframeRef"
-			:src="pluginSrc"
-			sandbox="allow-scripts allow-forms"
-			class="content-iframe"
-		></iframe>
-		<div v-else class="content-placeholder">
+		<!-- Running Plugins (Keep-Alive Iframes) -->
+		<template v-for="[id, plugin] in pluginState.runningPlugins" :key="id">
+			<iframe
+				v-show="pluginState.activePluginId === id && (plugin.isReady || fadingPlugins.has(id))"
+				:ref="el => setIframeRef(el, id)"
+				:src="plugin.src"
+				sandbox="allow-scripts allow-forms"
+				class="content-iframe"
+			></iframe>
+		</template>
+
+		<!-- Loading Overlay for Active Plugin -->
+		<div
+			v-if="
+				pluginState.activePluginId &&
+				pluginState.runningPlugins.get(pluginState.activePluginId) &&
+				!pluginState.runningPlugins.get(pluginState.activePluginId)?.isReady
+			"
+			class="loading-overlay"
+			:class="{ 'fade-out': fadingPlugins.has(pluginState.activePluginId!) }"
+		>
+			<div class="spinner"></div>
+			<span>Loading Plugin...</span>
+		</div>
+
+		<!-- Placeholder (Home) -->
+		<div v-show="!pluginState.activePluginId" class="content-placeholder">
 			<div class="placeholder-wrapper">
 				<span>Select a plugin</span>
 				<span>(or press the buttons below)</span>
@@ -267,5 +336,44 @@ onUnmounted(() => {
 }
 .action-btn:hover {
 	background: var(--paws-color-interactive-hover);
+}
+
+.loading-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: var(--paws-color-bg-primary);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 16px;
+	z-index: 10;
+	color: var(--paws-color-text-secondary);
+	transition: opacity 0.3s ease-out;
+}
+
+.loading-overlay.fade-out {
+	opacity: 0;
+}
+
+.spinner {
+	width: 40px;
+	height: 40px;
+	border: 4px solid var(--paws-color-bg-tertiary);
+	border-top: 4px solid var(--paws-color-accent-primary);
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	0% {
+		transform: rotate(0deg);
+	}
+	100% {
+		transform: rotate(360deg);
+	}
 }
 </style>

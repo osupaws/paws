@@ -154,6 +154,25 @@ namespace Paws.Host.Services.Core
             else UnloadPlugin(pluginId);
         }
 
+        public async Task SetPluginUiStateAsync(string pluginId, bool isAwake)
+        {
+            if (_loadedPlugins.TryGetValue(pluginId, out var pluginInstance))
+            {
+                if (pluginInstance is Paws.Core.Abstractions.Interfaces.ISupportsLifecycle lifecyclePlugin)
+                {
+                    try
+                    {
+                        if (isAwake) await lifecyclePlugin.OnUiWakeAsync();
+                        else await lifecyclePlugin.OnUiSleepAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Plugin {Id} failed to handle UI state change ({State})", pluginId, isAwake ? "Wake" : "Sleep");
+                    }
+                }
+            }
+        }
+
         public IPawsPlugin? GetPluginById(string pluginId) => _loadedPlugins.Values.FirstOrDefault(p => p.Id == pluginId);
     }
 }

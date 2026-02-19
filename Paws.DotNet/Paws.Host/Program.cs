@@ -298,6 +298,12 @@ pluginsApi.MapPost("/toggle-active", async ([FromBody] TogglePluginRequest req, 
     return Results.Ok();
 });
 
+pluginsApi.MapPost("/toggle-ui", async ([FromBody] TogglePluginUiRequest req, PluginManager pm) =>
+{
+    await pm.SetPluginUiStateAsync(req.Id, req.IsAwake);
+    return Results.Ok();
+});
+
 pluginsApi.MapGet("/loaded", (PluginManager pm) =>
 {
     // Return a DTO (Data Transfer Object) to control the data shape.
@@ -419,6 +425,7 @@ public record UpdateConfigRequest(bool? IsLegacyMode, string? StablePath, string
 public record UpdateSettingRequest(string Key, string Value, string Type = "string");
 public record InstallPluginRequest(string FilePath);
 public record TogglePluginRequest(string Id, bool IsActive);
+public record TogglePluginUiRequest(string Id, bool IsAwake);
 public record StoragePathRequest(string Path);
 public record ProcessAssetRequest(string AssetId, ImageProcessOptions Options);
 

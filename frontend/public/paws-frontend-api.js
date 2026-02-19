@@ -124,6 +124,10 @@
 	}
 
 	// Expose the simplified API on the window object
+	const lifecycleListeners = [];
+	const themeListeners = [];
+	const modeListeners = [];
+
 	window.paws = {
 		get: endpoint => request("get", endpoint),
 		post: (endpoint, body) => request("post", { endpoint, body }),
@@ -131,6 +135,7 @@
 		setStoreValue: (key, value) => request("set-store-value", { key, value }),
 		showOpenDialog: options => request("show-open-dialog", options),
 		restartApp: () => request("restart-app"),
+		resizeWindow: (isCompact) => request("resize-window", { isCompact }),
 
 		storage: {
 			uploadAsset: filePath => request("storage", { method: "uploadAsset", arg: filePath }),
@@ -140,18 +145,43 @@
 				request("storage", { method: "processAsset", arg: { assetId, options } })
 		},
 
+		// Event subscription
+		on: (event, callback) => {
+			if (event === "theme-changed") {
+				themeListeners.push(callback);
+			} else if (event === "mode-changed") {
+				modeListeners.push(callback);
+			} else if (event === "lifecycle") {
+				lifecycleListeners.push(callback);
+			}
+		},
+
 		// Method for the plugin UI to listen for notices from the main app
 		onNotice: callback => {
 			noticeHandlers.add(callback);
-			// Return a function to unsubscribe
 			return () => noticeHandlers.delete(callback);
 		},
 
-		// For sending a one-way notification to the parent renderer
 		notifyParent: (noticeType, payload) => {
 			window.parent.postMessage({ channel: "notice-from-frame", noticeType, payload }, "*");
 		}
 	};
+
+	// Listen for specific notices to dispatch to 'on' listeners
+	window.addEventListener("message", event => {
+		if (event.source !== window.parent) return;
+		const { channel, payload } = event.data;
+
+		if (channel === "notice") {
+			if (payload.type === "theme-changed") {
+				themeListeners.forEach(cb => cb(payload.themeState));
+			} else if (payload.type === "mode-changed") {
+				modeListeners.forEach(cb => cb(payload.mode));
+			}
+		} else if (channel === "lifecycle") {
+			lifecycleListeners.forEach(cb => cb(payload.event));
+		}
+	});
 
 	// Alias for compatibility with main renderer API
 	window.api = {
@@ -166,4 +196,13 @@
 			resizeWindow: window.paws.resizeWindow
 		}
 	};
+
+	// Auto-signal Ready
+	if (document.readyState === "complete" || document.readyState === "interactive") {
+		setTimeout(() => window.parent.postMessage({ channel: "paws:client-ready", id: 0 }, "*"), 0);
+	} else {
+		window.addEventListener("DOMContentLoaded", () => {
+			window.parent.postMessage({ channel: "paws:client-ready", id: 0 }, "*");
+		});
+	}
 })();
