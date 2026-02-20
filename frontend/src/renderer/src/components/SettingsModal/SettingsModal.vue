@@ -97,7 +97,7 @@ const handleThemeChange = (newThemeId: string): void => {
 					</template>
 
 					<template #actions>
-						<PawsSubButton size="medium" @click="closeSettings">
+						<PawsSubButton size="medium" text="close" @click="closeSettings">
 							<template #icon>
 								<CloseIcon />
 							</template>
@@ -228,7 +228,7 @@ const handleThemeChange = (newThemeId: string): void => {
 	left: 0;
 	width: 100%;
 	height: 100%;
-	background-color: rgba(0, 0, 0, 0.65);
+	background-color: #0004;
 	display: flex;
 	align-items: center;
 	justify-content: center;

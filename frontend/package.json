@@ -24,7 +24,7 @@
 	"dependencies": {
 		"@electron-toolkit/preload": "^3.0.1",
 		"@electron-toolkit/utils": "^4.0.0",
-		"@osupaws/paws-ui": "0.3.13-alpha",
+		"@osupaws/paws-ui": "0.3.20-alpha",
 		"electron-log": "^5.4.1",
 		"electron-updater": "^6.7.3",
 		"isomorphic-dompurify": "^2.35.0"

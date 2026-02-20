@@ -54,6 +54,17 @@ export async function togglePluginActive(id: string, isActive: boolean): Promise
 		// Refresh both lists
 		await fetchPlugins();
 		await fetchAllPlugins();
+
+		// If plugin was disabled, stop it if it was running
+		if (!isActive) {
+			if (pluginState.runningPlugins.has(id)) {
+				pluginState.runningPlugins.delete(id);
+			}
+			// If it was the active plugin, reset it
+			if (pluginState.activePluginId === id) {
+				setActivePlugin(null);
+			}
+		}
 	} catch (error) {
 		console.error("Failed to toggle plugin active state:", error);
 	}
