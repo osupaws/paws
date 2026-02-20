@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { CloseIcon, PawsCheckbox, PawsHeading, PawsSpoilerCard } from "@osupaws/paws-ui";
+import {
+	CloseIcon,
+	PawsCheckbox,
+	PawsHeading,
+	PawsModal,
+	PawsSpoilerCard,
+	PawsSubButton
+} from "@osupaws/paws-ui";
 import { closePlugins, modalState } from "@renderer/state/modal.state";
 import { fetchAllPlugins, pluginState, togglePluginActive } from "@renderer/state/plugin.state";
 import { sanitizeSvg } from "@renderer/utils/sanitizer";
@@ -16,79 +23,82 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 
 <template>
 	<Transition name="fade">
-		<div v-if="modalState.isPluginsOpen" class="plugins-overlay" @click.self="closePlugins">
+		<div v-if="modalState.isPluginsOpen" class="modal-overlay" @click.self="closePlugins">
 			<Transition name="scale">
-				<div v-if="modalState.isPluginsOpen" class="plugins-modal">
-					<div class="plugins-container">
-						<div class="header-row">
-							<PawsHeading size="lg" font-weight="medium" align="left">plugins</PawsHeading>
-							<button class="close-button" @click="closePlugins">
+				<PawsModal v-if="modalState.isPluginsOpen" @close="closePlugins">
+					<template #heading>
+						<PawsHeading size="lg" font-weight="medium" align="left">plugins</PawsHeading>
+					</template>
+
+					<template #actions>
+						<PawsSubButton size="medium" @click="closePlugins">
+							<template #icon>
 								<CloseIcon />
-							</button>
-						</div>
+							</template>
+						</PawsSubButton>
+					</template>
 
-						<div class="cards-container">
-							<div class="plugins-list">
-								<PawsSpoilerCard v-for="plugin in pluginState.allInstalledPlugins" :key="plugin.id">
-									<template #header>
-										<div class="plugin-header-content">
-											<div class="header-left">
-												<PawsCheckbox
-													:model-value="plugin.isActive"
-													label="enable"
-													@update:model-value="val => handleToggle(plugin.id, val)"
-												/>
-											</div>
-											<div class="header-center">
-												<div class="title-group">
-													<!-- eslint-disable vue/no-v-html -->
-													<div
-														v-if="plugin.icon"
-														class="plugin-icon"
-														v-html="sanitizeSvg(plugin.icon)"
-													></div>
-													<!-- eslint-enable vue/no-v-html -->
-													<span class="plugin-name">{{ plugin.name }}</span>
-												</div>
-											</div>
+					<div class="cards-container">
+						<div class="plugins-list">
+							<PawsSpoilerCard v-for="plugin in pluginState.allInstalledPlugins" :key="plugin.id">
+								<template #header>
+									<div class="plugin-header-content">
+										<div class="header-left">
+											<PawsCheckbox
+												:model-value="plugin.isActive"
+												label="enable"
+												@update:model-value="val => handleToggle(plugin.id, val)"
+											/>
 										</div>
-									</template>
-
-									<div class="plugin-details">
-										<div class="detail-section">
-											<span class="detail-label">description</span>
-											<p class="detail-text">
-												{{ plugin.description || "no description provided" }}
-											</p>
-										</div>
-
-										<div class="detail-section">
-											<span class="detail-label">details</span>
-											<div class="meta-info">
-												<div v-if="plugin.permissions?.length" class="meta-row">
-													<span class="meta-label">permissions:</span>
-													<span class="meta-values">{{ plugin.permissions.join(", ") }}</span>
-												</div>
-												<div v-if="plugin.provides?.length" class="meta-row">
-													<span class="meta-label">provides:</span>
-													<span class="meta-values">{{ plugin.provides.join(", ") }}</span>
-												</div>
-												<div v-if="plugin.consumes?.length" class="meta-row">
-													<span class="meta-label">consumes:</span>
-													<span class="meta-values">{{ plugin.consumes.join(", ") }}</span>
-												</div>
+										<div class="header-center">
+											<div class="title-group">
+												<!-- eslint-disable vue/no-v-html -->
+												<div
+													v-if="plugin.icon"
+													class="plugin-icon"
+													v-html="sanitizeSvg(plugin.icon)"
+												></div>
+												<!-- eslint-enable vue/no-v-html -->
+												<span class="plugin-name">{{ plugin.name }}</span>
 											</div>
 										</div>
 									</div>
-								</PawsSpoilerCard>
+								</template>
 
-								<div v-if="pluginState.allInstalledPlugins.length === 0" class="empty-state">
-									no plugins installed yet
+								<div class="plugin-details">
+									<div class="detail-section">
+										<span class="detail-label">description</span>
+										<p class="detail-text">
+											{{ plugin.description || "no description provided" }}
+										</p>
+									</div>
+
+									<div class="detail-section">
+										<span class="detail-label">details</span>
+										<div class="meta-info">
+											<div v-if="plugin.permissions?.length" class="meta-row">
+												<span class="meta-label">permissions:</span>
+												<span class="meta-values">{{ plugin.permissions.join(", ") }}</span>
+											</div>
+											<div v-if="plugin.provides?.length" class="meta-row">
+												<span class="meta-label">provides:</span>
+												<span class="meta-values">{{ plugin.provides.join(", ") }}</span>
+											</div>
+											<div v-if="plugin.consumes?.length" class="meta-row">
+												<span class="meta-label">consumes:</span>
+												<span class="meta-values">{{ plugin.consumes.join(", ") }}</span>
+											</div>
+										</div>
+									</div>
 								</div>
+							</PawsSpoilerCard>
+
+							<div v-if="pluginState.allInstalledPlugins.length === 0" class="empty-state">
+								no plugins installed yet
 							</div>
 						</div>
 					</div>
-				</div>
+				</PawsModal>
 			</Transition>
 		</div>
 	</Transition>
@@ -118,7 +128,7 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 	opacity: 0;
 }
 
-.plugins-overlay {
+.modal-overlay {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -131,64 +141,10 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 	z-index: 2000;
 }
 
-.plugins-modal {
-	width: 520px;
-	height: 500px;
-	background-color: var(--paws-color-bg-primary);
-	border: 1px solid var(--paws-color-bg-tertiary);
-	border-radius: var(--paws-rounding-big, 16px);
-	box-shadow:
-		0 25px 50px -12px rgba(0, 0, 0, 0.5),
-		0 0 1px 1px rgba(255, 255, 255, 0.05) inset;
-}
-
-.plugins-container {
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-	padding: 4px 20px 20px 20px;
-	box-sizing: border-box;
-}
-
-.header-row {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	height: 32px;
-}
-
-.close-button {
-	background: none;
-	border: none;
-	color: var(--paws-color-text-secondary);
-	width: 32px;
-	height: 32px;
-	cursor: pointer;
-	padding: 0;
-	border-radius: 6px;
-	transition: all 0.2s;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-.close-button:hover {
-	background-color: var(--paws-color-interactive-primary);
-	color: var(--paws-color-text-primary);
-}
-
 .cards-container {
-	margin-top: 12px;
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
-	flex: 1;
-	overflow-y: auto;
-}
-
-.plugins-section {
-	width: 100%;
-	box-sizing: border-box;
 }
 
 .plugins-list {
