@@ -1,8 +1,10 @@
 <!-- frontend/src/renderer/src/components/regions/Content/Content.vue -->
 <script setup lang="ts">
+import { menuState } from "@renderer/state/menu.state";
 import { openSettings } from "@renderer/state/modal.state";
 import {
 	ensurePluginRunning,
+	fetchAllPlugins,
 	fetchPlugins,
 	pluginState,
 	setPluginReady,
@@ -34,6 +36,7 @@ const handleInstallPlugin = async (): Promise<void> => {
 		try {
 			await window.api.backend.post("/api/plugins/install", { filePath });
 			await fetchPlugins();
+			await fetchAllPlugins();
 		} catch (e) {
 			console.error("Plugin install failed", e);
 		}
@@ -142,6 +145,28 @@ watch(
 		}
 	},
 	{ immediate: true }
+);
+
+function broadcastSignal(type: string, payload?: any): void {
+	iframeRefs.value.forEach(iframe => {
+		iframe.contentWindow?.postMessage(
+			{
+				channel: "notice",
+				payload: { type, ...payload }
+			},
+			"*"
+		);
+	});
+}
+
+// Watch for menu changes to notify plugins (PluginShell feature)
+watch(
+	() => menuState.isOpen,
+	isOpen => {
+		if (isOpen) {
+			broadcastSignal("paws:close-all-modals");
+		}
+	}
 );
 
 // Watch for changes in theme/mode to broadcast to ALL running plugins

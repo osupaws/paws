@@ -2,20 +2,14 @@
 import { PawsTooltip } from "@osupaws/paws-ui";
 import Layout from "@renderer/components/Layout/Layout.vue";
 import { closeMenu, menuState } from "@renderer/state/menu.state";
-import { closeAllModals, modalState } from "@renderer/state/modal.state";
 import { getActiveThemeInfo, themeState } from "@renderer/state/theme.state";
 import { updateThemeLinks } from "@renderer/utils/theme-manager";
 import { onMounted, onUnmounted, watch } from "vue";
 
 // Global keyboard handlers
 const handleKeyDown = (e: KeyboardEvent): void => {
-	if (e.key === "Escape") {
-		const hadModalsOpen = modalState.isSettingsOpen || modalState.isPluginsOpen;
-		if (hadModalsOpen) {
-			closeAllModals();
-		} else if (menuState.isOpen) {
-			closeMenu();
-		}
+	if (e.key === "Escape" && menuState.isOpen) {
+		closeMenu();
 	}
 };
 

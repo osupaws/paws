@@ -10,6 +10,7 @@ namespace Paws.Core.Abstractions.Models
         public string Version { get; set; } = string.Empty;
         public string Author { get; set; } = string.Empty;
         public string EntryPoint { get; set; } = string.Empty;
+        public string? Icon { get; set; }
         public string? IconData { get; set; }
         public PluginUiInfo? Ui { get; set; }
         public List<string> Permissions { get; set; } = new List<string>();

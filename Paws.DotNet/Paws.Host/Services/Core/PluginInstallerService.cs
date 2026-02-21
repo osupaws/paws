@@ -59,6 +59,18 @@ namespace Paws.Host.Services.Core
                 _logger.LogWarning("EntryPoint {EntryPoint} not found in the archive for plugin {Id}. Skipping security scan.", manifest.EntryPoint, manifest.Id);
             }
 
+            // --- EXTRACT ICON ---
+            if (!string.IsNullOrEmpty(manifest.Icon) && string.IsNullOrEmpty(manifest.IconData))
+            {
+                var iconEntry = archive.GetEntry(manifest.Icon);
+                if (iconEntry != null)
+                {
+                    using var iconStream = iconEntry.Open();
+                    using var iconReader = new StreamReader(iconStream);
+                    manifest.IconData = await iconReader.ReadToEndAsync();
+                }
+            }
+
             // 1. Prepare Plugin Entity
             var plugin = new Paws.Host.Data.Schemas.Plugin
             {
@@ -69,7 +81,9 @@ namespace Paws.Host.Services.Core
                 Author = manifest.Author ?? string.Empty,
                 Description = manifest.Description ?? string.Empty,
                 UiEntry = manifest.Ui?.Entry ?? string.Empty,
-                IsActive = true
+                IsActive = true,
+                Icon = manifest.Icon,
+                IconData = manifest.IconData
             };
 
             // Add permissions
@@ -79,6 +93,14 @@ namespace Paws.Host.Services.Core
                 {
                     plugin.Permissions.Add(perm);
                 }
+            }
+            if (manifest.Provides != null)
+            {
+                foreach (var prov in manifest.Provides) plugin.Provides.Add(prov);
+            }
+            if (manifest.Consumes != null)
+            {
+                foreach (var cons in manifest.Consumes) plugin.Consumes.Add(cons);
             }
 
             // 2. Clear old version first

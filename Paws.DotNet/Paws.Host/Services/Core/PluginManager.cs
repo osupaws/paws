@@ -136,7 +136,10 @@ namespace Paws.Host.Services.Core
                         Author = p.Author,
                         Description = p.Description,
                         Permissions = p.Permissions.ToList(),
+                        Provides = p.Provides.ToList(),
+                        Consumes = p.Consumes.ToList(),
                         IsActive = p.IsActive,
+                        IconData = p.IconData,
                         Ui = string.IsNullOrEmpty(p.UiEntry) ? null : new PluginUiInfo { Entry = p.UiEntry }
                     }
                 ).ToList();

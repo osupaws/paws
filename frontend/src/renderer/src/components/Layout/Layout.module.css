@@ -10,4 +10,7 @@
 	position: relative;
 	overflow: hidden;
 	border-radius: var(--paws-rounding-big, 16px) var(--paws-rounding-big, 16px) 0 0;
+	transform: translateZ(
+		0
+	); /* Constrains position: fixed elements (like modals) to this container */
 }
