@@ -92,6 +92,8 @@
 						document.body.classList.remove("paws-theme-transitioning");
 					}, 300);
 				}
+			} else if (notice.type === "paws:close-all-modals") {
+				window.dispatchEvent(new CustomEvent("paws:close-modals"));
 			}
 			return;
 		}
