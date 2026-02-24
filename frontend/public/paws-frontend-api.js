@@ -130,6 +130,9 @@
 	const themeListeners = [];
 	const modeListeners = [];
 
+	let lastThemeState = null;
+	let lastMode = null;
+
 	window.paws = {
 		get: endpoint => request("get", endpoint),
 		post: (endpoint, body) => request("post", { endpoint, body }),
@@ -151,8 +154,10 @@
 		on: (event, callback) => {
 			if (event === "theme-changed") {
 				themeListeners.push(callback);
+				if (lastThemeState) callback(lastThemeState);
 			} else if (event === "mode-changed") {
 				modeListeners.push(callback);
+				if (lastMode) callback(lastMode);
 			} else if (event === "lifecycle") {
 				lifecycleListeners.push(callback);
 			}
@@ -176,8 +181,10 @@
 
 		if (channel === "notice") {
 			if (payload.type === "theme-changed") {
+				lastThemeState = payload.themeState;
 				themeListeners.forEach(cb => cb(payload.themeState));
 			} else if (payload.type === "mode-changed") {
+				lastMode = payload.mode;
 				modeListeners.forEach(cb => cb(payload.mode));
 			}
 		} else if (channel === "lifecycle") {
