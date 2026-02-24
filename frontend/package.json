@@ -1,9 +1,9 @@
 {
 	"name": "paws-app",
-	"version": "0.0.1-pre-alpha (LSv51)",
-	"description": "An Electron application with Vue and TypeScript",
+	"version": "0.0.1-alpha",
+	"description": "u got paws. i'll do it for u.",
 	"main": "./out/main/index.js",
-	"author": "example.com",
+	"author": "paws-team",
 	"homepage": "https://electron-vite.org",
 	"scripts": {
 		"format": "prettier --write .",
