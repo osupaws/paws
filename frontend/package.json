@@ -1,9 +1,9 @@
 {
-	"name": "frontend",
-	"version": "1.0.0",
-	"description": "An Electron application with Vue and TypeScript",
+	"name": "paws-app",
+	"version": "0.0.1-alpha",
+	"description": "u got paws. i'll do it for u.",
 	"main": "./out/main/index.js",
-	"author": "example.com",
+	"author": "paws-team",
 	"homepage": "https://electron-vite.org",
 	"scripts": {
 		"format": "prettier --write .",
@@ -24,7 +24,7 @@
 	"dependencies": {
 		"@electron-toolkit/preload": "^3.0.1",
 		"@electron-toolkit/utils": "^4.0.0",
-		"@osupaws/paws-ui": "0.3.2-alpha",
+		"@osupaws/paws-ui": "0.4.1",
 		"electron-log": "^5.4.1",
 		"electron-updater": "^6.7.3",
 		"isomorphic-dompurify": "^2.35.0"
@@ -33,6 +33,7 @@
 		"@electron-toolkit/eslint-config-prettier": "3.0.0",
 		"@electron-toolkit/eslint-config-ts": "^3.0.0",
 		"@electron-toolkit/tsconfig": "^1.0.1",
+		"@electron/fuses": "^2.0.0",
 		"@stylistic/eslint-plugin": "^5.1.0",
 		"@types/node": "^22.14.1",
 		"@vitejs/plugin-vue": "^5.2.3",

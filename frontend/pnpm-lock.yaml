@@ -15,8 +15,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0(electron@35.7.4)
       '@osupaws/paws-ui':
-        specifier: 0.3.2-alpha
-        version: 0.3.2-alpha(vue@3.5.18(typescript@5.9.2))
+        specifier: 0.4.1
+        version: 0.4.1(vue@3.5.18(typescript@5.9.2))
       electron-log:
         specifier: ^5.4.1
         version: 5.4.2
@@ -36,6 +36,9 @@ importers:
       '@electron-toolkit/tsconfig':
         specifier: ^1.0.1
         version: 1.0.1(@types/node@22.17.0)
+      '@electron/fuses':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@stylistic/eslint-plugin':
         specifier: ^5.1.0
         version: 5.2.2(eslint@9.32.0)
@@ -254,6 +257,11 @@ packages:
   '@electron/asar@3.4.1':
     resolution: {integrity: sha512-i4/rNPRS84t0vSRa2HorerGRXWyF4vThfHesw0dmcWHp+cspK743UanA0suA5Q5y8kzY2y6YKrvbIUn69BCAiA==}
     engines: {node: '>=10.12.0'}
+    hasBin: true
+
+  '@electron/fuses@2.0.0':
+    resolution: {integrity: sha512-lyb1zK3YHeWUjaz7yiK0GnxSPduwASKMyiDbCtbn3spP6EEt+UWtktggWehG0icFrXAk3GwvcJ4nCrJO0N9IhQ==}
+    engines: {node: '>=22.12.0'}
     hasBin: true
 
   '@electron/get@2.0.3':
@@ -558,8 +566,8 @@ packages:
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
     deprecated: This functionality has been moved to @npmcli/fs
 
-  '@osupaws/paws-ui@0.3.2-alpha':
-    resolution: {integrity: sha512-taJhasn+x5wfll1sSf5YQ2UHGFF8osbiCTT/PTLSXPvvVHPp0qAQlo4v8ul/cQ+XK4vfgNYAT038+t035aT1DQ==, tarball: https://npm.pkg.github.com/download/@osupaws/paws-ui/0.3.2-alpha/03b9edf05b8ac3edbf1d65e81899eb4a73b0a183}
+  '@osupaws/paws-ui@0.4.1':
+    resolution: {integrity: sha512-2aiwgcHus9SNNZhzrGYOO65YOpKWPWpVVt7BxKNu+Z7CTfa8FuqlZID3mZjE0CcRebcJcNTcNC+Aebe0s1C+RQ==, tarball: https://npm.pkg.github.com/download/@osupaws/paws-ui/0.4.1/08602bd92d9924635b780b382c5611486ee44f21}
     engines: {node: '>=22.17'}
     peerDependencies:
       vue: ^3.5.18
@@ -3216,6 +3224,8 @@ snapshots:
       glob: 7.2.3
       minimatch: 3.1.2
 
+  '@electron/fuses@2.0.0': {}
+
   '@electron/get@2.0.3':
     dependencies:
       debug: 4.4.1
@@ -3484,7 +3494,7 @@ snapshots:
       mkdirp: 1.0.4
       rimraf: 3.0.2
 
-  '@osupaws/paws-ui@0.3.2-alpha(vue@3.5.18(typescript@5.9.2))':
+  '@osupaws/paws-ui@0.4.1(vue@3.5.18(typescript@5.9.2))':
     dependencies:
       vue: 3.5.18(typescript@5.9.2)
 

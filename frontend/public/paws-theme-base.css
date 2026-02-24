@@ -1,9 +1,46 @@
 @layer base, custom;
 
-/* This file provides the base for all themes, including smooth transitions. */
+/*
+   Font Definitions: Load fonts explicitly from the app bundle to ensure
+   variable font tables are preserved within isolated iframes.
+*/
+@font-face {
+	font-family: "Wix Madefor Display";
+	src: url("paws-app://fonts/WixMadeforDisplay.ttf") format("truetype");
+	font-weight: 400 800;
+}
+
+@font-face {
+	font-family: "Fredoka";
+	src: url("paws-app://fonts/Fredoka.ttf") format("truetype");
+	font-weight: 300 700;
+}
+
+@font-face {
+	font-family: "Azeret Mono";
+	src: url("paws-app://fonts/AzeretMono.ttf") format("truetype");
+	font-weight: 400 800;
+}
+
+/* Global Reset & Rendering for Core and Plugins */
+body {
+	margin: 0;
+	padding: 0;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	font-weight: 500;
+	/* Force compositor layer for cleaner text rendering */
+	opacity: 0.999;
+}
+
 .paws-theme-transitioning * {
 	transition:
 		background-color 0.3s ease-in-out,
 		color 0.3s ease-in-out,
 		border-color 0.3s ease-in-out;
+}
+
+/* Hide scrollbars globally in plugins */
+*::-webkit-scrollbar {
+	display: none;
 }

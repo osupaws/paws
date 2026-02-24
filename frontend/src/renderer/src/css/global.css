@@ -9,7 +9,7 @@ body,
 	user-select: none;
 }
 
-#app,
+body,
 button {
 	font-family: var(--paws-font-primary);
 	color: var(--paws-color-text-primary);
@@ -18,11 +18,8 @@ button {
 	-moz-osx-font-smoothing: grayscale;
 }
 
-#app {
-	opacity: 0.999; /* Force grayscale antialiasing by creating a compositor layer */
-}
-
 body {
+	opacity: 0.999; /* Force grayscale antialiasing by creating a compositor layer */
 	background-color: var(--paws-color-bg-titlebar);
 }
 

@@ -10,6 +10,10 @@ import { app, BrowserWindow, ipcMain, net, protocol } from "electron";
 import log from "electron-log";
 import { existsSync } from "fs";
 import { join, normalize } from "path";
+import { pathToFileURL } from "url";
+
+app.setPath("userData", join(app.getPath("appData"), "Paws", "Frontend"));
+app.name = "Paws"; // Set the application name for AppData paths
 
 // Linter Fix: Add async return type Promise<any>
 const BACKEND_PORT = 5088;
@@ -42,6 +46,79 @@ ipcMain.handle("api-post", (_event, { endpoint, body }): Promise<any> => {
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(body)
 	});
+});
+
+ipcMain.handle("paws:upload-asset", async (_event, filePath: string): Promise<any> => {
+	try {
+		const fs = await import("fs");
+		const buffer = fs.readFileSync(filePath);
+		const fileName = (await import("path")).basename(filePath);
+
+		const formData = new FormData();
+		// @ts-ignore (Electron fetch accepts Blob/Buffer in FormData)
+		formData.append("file", new Blob([buffer]), fileName);
+
+		const response = await net.fetch(`http://localhost:${BACKEND_PORT}/api/assets/upload`, {
+			method: "POST",
+			body: formData
+		});
+
+		if (!response.ok) {
+			const text = await response.text();
+			throw new Error(text || `Upload failed with status ${response.status}`);
+		}
+
+		return await response.json();
+	} catch (error) {
+		log.error("Asset upload IPC error:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("paws:upload-temp", async (_event, uint8Array: Uint8Array): Promise<any> => {
+	try {
+		const formData = new FormData();
+		// @ts-ignore (Electron fetch accepts Blob/Buffer in FormData)
+		formData.append("file", new Blob([uint8Array]), "ui-upload.bin");
+
+		const response = await net.fetch(`http://localhost:${BACKEND_PORT}/api/storage/upload-temp`, {
+			method: "POST",
+			body: formData
+		});
+
+		if (!response.ok) {
+			const text = await response.text();
+			throw new Error(text || `Temp upload failed with status ${response.status}`);
+		}
+
+		return await response.json();
+	} catch (error) {
+		log.error("Temp upload IPC error:", error);
+		throw error;
+	}
+});
+
+ipcMain.handle("paws:upload-temp-path", async (_event, filePath: string): Promise<any> => {
+	try {
+		const response = await net.fetch(
+			`http://localhost:${BACKEND_PORT}/api/storage/upload-temp-path`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ path: filePath })
+			}
+		);
+
+		if (!response.ok) {
+			const text = await response.text();
+			throw new Error(text || `Path upload failed with status ${response.status}`);
+		}
+
+		return await response.json();
+	} catch (error) {
+		log.error("Path upload IPC error:", error);
+		throw error;
+	}
 });
 
 // Register schemes as privileged to allow fetch API, service workers, and bypass CSP for local resources if needed.
@@ -90,16 +167,16 @@ app.whenReady().then(async () => {
 		try {
 			const url = new URL(request.url);
 
-            // Handle hostname as part of the path (e.g. paws-app://file.js -> hostname=file.js)
-            let relativePath = url.hostname;
-            if (url.pathname && url.pathname !== "/") {
-                relativePath = join(relativePath, url.pathname);
-            }
+			// Handle hostname as part of the path (e.g. paws-app://file.js -> hostname=file.js)
+			let relativePath = url.hostname;
+			if (url.pathname && url.pathname !== "/") {
+				relativePath = join(relativePath, url.pathname);
+			}
 
-            // Remove trailing separator if present (browser adds trailing slash to hostname-only URLs)
-            if (relativePath.endsWith("/") || relativePath.endsWith("\\")) {
-                relativePath = relativePath.slice(0, -1);
-            }
+			// Remove trailing separator if present (browser adds trailing slash to hostname-only URLs)
+			if (relativePath.endsWith("/") || relativePath.endsWith("\\")) {
+				relativePath = relativePath.slice(0, -1);
+			}
 
 			const publicRoot = is.dev
 				? join(__dirname, "..", "..", "public") // Dev: serve from source public folder
@@ -121,7 +198,7 @@ app.whenReady().then(async () => {
 				return new Response("Forbidden", { status: 403 });
 			}
 
-            const fileUrl = require("url").pathToFileURL(absolutePath).toString();
+			const fileUrl = pathToFileURL(absolutePath).toString();
 			return net.fetch(fileUrl);
 		} catch (error) {
 			log.error(`Error in 'paws-app' protocol for ${request.url}: ${error}`);
@@ -168,6 +245,7 @@ app.whenReady().then(async () => {
 
 			// Construct API URL: http://localhost:5088/api/plugins/{id}/files/{path}
 			const apiUrl = `http://localhost:5088/api/plugins/${pluginId}/files${filePath}`;
+			log.info(`[paws-plugin] Handling request: ${request.url} -> ${apiUrl}`);
 
 			return net.fetch(apiUrl);
 		} catch (error) {
@@ -176,13 +254,17 @@ app.whenReady().then(async () => {
 		}
 	});
 
-	const splashWindow = createSplashWindow();
-	createMainWindow(splashWindow);
+	createSplashWindow();
+	createMainWindow();
+
+	if (is.dev) {
+		log.info(`Development Mode: ELECTRON_RENDERER_URL = ${process.env.ELECTRON_RENDERER_URL}`);
+	}
 
 	startBackend();
 
 	app.on("activate", function () {
-		if (BrowserWindow.getAllWindows().length === 0) createMainWindow(splashWindow);
+		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
 	});
 });
 

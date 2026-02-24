@@ -12,14 +12,22 @@ export interface PluginManifest {
 	ui: {
 		entry: string;
 	} | null;
-	icon?: string;
+	iconData?: string;
 	isActive: boolean;
+}
+
+export interface RunningPlugin {
+	id: string;
+	src: string;
+	isReady: boolean;
+	manifest: PluginManifest;
 }
 
 export const pluginState = reactive({
 	loadedPlugins: [] as PluginManifest[],
 	allInstalledPlugins: [] as PluginManifest[],
-	activePluginId: null as string | null
+	activePluginId: null as string | null,
+	runningPlugins: new Map<string, RunningPlugin>()
 });
 
 export async function fetchPlugins(): Promise<void> {
@@ -46,11 +54,59 @@ export async function togglePluginActive(id: string, isActive: boolean): Promise
 		// Refresh both lists
 		await fetchPlugins();
 		await fetchAllPlugins();
+
+		// If plugin was disabled, stop it if it was running
+		if (!isActive) {
+			if (pluginState.runningPlugins.has(id)) {
+				pluginState.runningPlugins.delete(id);
+			}
+			// If it was the active plugin, reset it
+			if (pluginState.activePluginId === id) {
+				setActivePlugin(null);
+			}
+		}
 	} catch (error) {
 		console.error("Failed to toggle plugin active state:", error);
 	}
 }
 
 export function setActivePlugin(id: string | null): void {
+	console.log("[plugin.state] Setting Active Plugin ID:", id);
 	pluginState.activePluginId = id;
+	if (id) {
+		ensurePluginRunning(id);
+	}
+}
+
+export async function setPluginUiState(id: string, isAwake: boolean): Promise<void> {
+	try {
+		await window.api.backend.post("/api/plugins/toggle-ui", { id, isAwake });
+	} catch (e) {
+		console.error(`Failed to set UI state for ${id}:`, e);
+	}
+}
+
+export function ensurePluginRunning(pluginId: string): void {
+	if (pluginState.runningPlugins.has(pluginId)) return;
+
+	const plugin = pluginState.loadedPlugins.find(p => p.id === pluginId);
+	if (!plugin || !plugin.ui) {
+		console.warn(`[plugin.state] Cannot start plugin ${pluginId}: Not found or no UI.`);
+		return;
+	}
+
+	const src = `paws-plugin://${plugin.id}/${plugin.ui.entry}?pluginId=${plugin.id}`;
+	pluginState.runningPlugins.set(pluginId, {
+		id: pluginId,
+		src,
+		isReady: false,
+		manifest: plugin
+	});
+}
+
+export function setPluginReady(pluginId: string): void {
+	const running = pluginState.runningPlugins.get(pluginId);
+	if (running) {
+		running.isReady = true;
+	}
 }

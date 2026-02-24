@@ -20,6 +20,11 @@ const selectPlugin = (id: string): void => {
 	closeMenu();
 };
 
+const goHome = (): void => {
+	setActivePlugin(null);
+	closeMenu();
+};
+
 const themeModel = computed({
 	get: () => {
 		const currentTheme = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
@@ -46,9 +51,9 @@ const handleOpenPlugins = (): void => {
 	<Transition name="menu">
 		<div v-if="menuState.isOpen" :class="styles.menuWrapper" @click.self="closeMenu">
 			<div :class="styles.menu">
-				<!-- Section: Client Launcher Placeholder -->
+				<!-- Section: Home -->
 				<div :class="[styles.section, styles.paddedSection]">
-					<PawsMenuButton label="launch akatsuki">launch akatsuki</PawsMenuButton>
+					<PawsMenuButton label="Home" @click="goHome">home</PawsMenuButton>
 				</div>
 
 				<!-- Section: Plugins -->

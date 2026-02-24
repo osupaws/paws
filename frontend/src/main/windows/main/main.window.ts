@@ -1,9 +1,10 @@
 import { is } from "@electron-toolkit/utils";
 import { appState } from "@main/state/app.state";
 import { BrowserWindow, shell } from "electron";
+import log from "electron-log";
 import { join } from "path";
 
-export const createMainWindow = (splashWindow: BrowserWindow): BrowserWindow => {
+export const createMainWindow = (): BrowserWindow => {
 	const mainWindow = new BrowserWindow({
 		width: 640,
 		height: 800,
@@ -28,13 +29,13 @@ export const createMainWindow = (splashWindow: BrowserWindow): BrowserWindow => 
 	});
 	appState.set("mainWindow", mainWindow);
 
-	mainWindow.on("ready-to-show", () => {
-		mainWindow.show();
+	// mainWindow.on("ready-to-show", () => {
+	// 	mainWindow.show();
 
-		if (splashWindow) {
-			splashWindow.destroy();
-		}
-	});
+	// 	if (splashWindow) {
+	// 		splashWindow.destroy();
+	// 	}
+	// });
 
 	mainWindow.webContents.setWindowOpenHandler(details => {
 		shell.openExternal(details.url);
@@ -44,11 +45,21 @@ export const createMainWindow = (splashWindow: BrowserWindow): BrowserWindow => 
 	// HMR for renderer base on electron-vite cli.
 	// Load the remote URL for development or the local html file for production.
 	if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+		log.info(`Main Window: Loading URL ${process.env.ELECTRON_RENDERER_URL}`);
 		mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
 		mainWindow.webContents.openDevTools({ mode: "detach" });
 	} else {
-		mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
+		const filePath = join(__dirname, "../renderer/index.html");
+		log.info(`Main Window: Loading File ${filePath}`);
+		mainWindow.loadFile(filePath);
 	}
+
+	mainWindow.webContents.on(
+		"did-fail-load",
+		(_event, errorCode, errorDescription, validatedURL) => {
+			log.error(`Failed to load URL: ${validatedURL}, Error: ${errorDescription} (${errorCode})`);
+		}
+	);
 
 	return mainWindow;
 };

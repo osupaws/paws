@@ -55,7 +55,7 @@ export async function initializeThemes(): Promise<void> {
 	// Handle backward compatibility for saved themes.
 	// Old saved values might be 'dark' or 'light'. We need to convert them to 'paws-dark'/'paws-light'.
 	// We use a helper to safely fetch settings or default.
-	const fetchSetting = async (key: string, def: string) => {
+	const fetchSetting = async (key: string, def: string): Promise<string> => {
 		try {
 			const res = await window.api.backend.get(`/api/settings/${key}`);
 			return res?.value || def;

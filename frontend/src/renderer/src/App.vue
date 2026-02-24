@@ -1,9 +1,26 @@
 <script setup lang="ts">
 import { PawsTooltip } from "@osupaws/paws-ui";
 import Layout from "@renderer/components/Layout/Layout.vue";
+import { closeMenu, menuState } from "@renderer/state/menu.state";
 import { getActiveThemeInfo, themeState } from "@renderer/state/theme.state";
 import { updateThemeLinks } from "@renderer/utils/theme-manager";
-import { watch } from "vue";
+import { onMounted, onUnmounted, watch } from "vue";
+
+// Global keyboard handlers
+const handleKeyDown = (e: KeyboardEvent): void => {
+	if (e.key === "Escape" && menuState.isOpen) {
+		closeMenu();
+	}
+};
+
+onMounted(() => {
+	window.addEventListener("keydown", handleKeyDown);
+});
+
+onUnmounted(() => {
+	window.removeEventListener("keydown", handleKeyDown);
+});
+
 // This watcher handles all side effects of a theme change.
 watch(
 	() => themeState.activeThemeId,

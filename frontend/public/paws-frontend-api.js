@@ -35,9 +35,34 @@
 
 				const isInitial = notice.initial || false;
 
+				const ensureLink = (id, hrefPattern) => {
+					let link = document.getElementById(id);
+					// If not found by ID, try to find by partial href (in case it was hardcoded in HTML)
+					if (!link && hrefPattern) {
+						link = Array.from(document.getElementsByTagName("link")).find(l =>
+							l.href.includes(hrefPattern)
+						);
+						if (link) link.id = id; // Give it the ID so we find it next time
+					}
+
+					if (!link) {
+						link = document.createElement("link");
+						link.id = id;
+						link.rel = "stylesheet";
+						document.head.appendChild(link);
+					}
+					return link;
+				};
+
 				const applyTheme = () => {
-					// We need to re-derive baseThemeInfo based on themeState for this iframe's context
-					// since the original notice.theme only contains the active theme's info.
+					const themeBaseLink = ensureLink("paws-theme-base-link", "paws-theme-base.css");
+					const baseLink = ensureLink("paws-theme-link", "themes/");
+					const customLink = ensureLink("paws-theme-custom-link", "paws-theme://");
+
+					// Ensure base rendering styles are always loaded
+					const newBaseHref = `paws-app://paws-theme-base.css?v=${timestamp}`;
+					if (themeBaseLink.href !== newBaseHref) themeBaseLink.href = newBaseHref;
+
 					const baseThemeInfo = themeState.availableThemes.find(
 						t => t.id === `paws-${activeThemeInfo.base}`
 					);
@@ -67,6 +92,8 @@
 						document.body.classList.remove("paws-theme-transitioning");
 					}, 300);
 				}
+			} else if (notice.type === "paws:close-all-modals") {
+				window.dispatchEvent(new CustomEvent("paws:close-modals"));
 			}
 			return;
 		}
@@ -99,6 +126,13 @@
 	}
 
 	// Expose the simplified API on the window object
+	const lifecycleListeners = [];
+	const themeListeners = [];
+	const modeListeners = [];
+
+	let lastThemeState = null;
+	let lastMode = null;
+
 	window.paws = {
 		get: endpoint => request("get", endpoint),
 		post: (endpoint, body) => request("post", { endpoint, body }),
@@ -106,18 +140,78 @@
 		setStoreValue: (key, value) => request("set-store-value", { key, value }),
 		showOpenDialog: options => request("show-open-dialog", options),
 		restartApp: () => request("restart-app"),
-		resizeWindow: isCompact => request("resize-window", { isCompact }),
+		resizeWindow: (isCompact) => request("resize-window", { isCompact }),
+
+		storage: {
+			uploadAsset: filePath => request("storage", { method: "uploadAsset", arg: filePath }),
+			uploadTemp: buffer => request("storage", { method: "uploadTemp", arg: buffer }),
+			uploadTempPath: filePath => request("storage", { method: "uploadTempPath", arg: filePath }),
+			processAsset: (assetId, options) =>
+				request("storage", { method: "processAsset", arg: { assetId, options } })
+		},
+
+		// Event subscription
+		on: (event, callback) => {
+			if (event === "theme-changed") {
+				themeListeners.push(callback);
+				if (lastThemeState) callback(lastThemeState);
+			} else if (event === "mode-changed") {
+				modeListeners.push(callback);
+				if (lastMode) callback(lastMode);
+			} else if (event === "lifecycle") {
+				lifecycleListeners.push(callback);
+			}
+		},
 
 		// Method for the plugin UI to listen for notices from the main app
 		onNotice: callback => {
 			noticeHandlers.add(callback);
-			// Return a function to unsubscribe
 			return () => noticeHandlers.delete(callback);
 		},
 
-		// For sending a one-way notification to the parent renderer
 		notifyParent: (noticeType, payload) => {
 			window.parent.postMessage({ channel: "notice-from-frame", noticeType, payload }, "*");
 		}
 	};
+
+	// Listen for specific notices to dispatch to 'on' listeners
+	window.addEventListener("message", event => {
+		if (event.source !== window.parent) return;
+		const { channel, payload } = event.data;
+
+		if (channel === "notice") {
+			if (payload.type === "theme-changed") {
+				lastThemeState = payload.themeState;
+				themeListeners.forEach(cb => cb(payload.themeState));
+			} else if (payload.type === "mode-changed") {
+				lastMode = payload.mode;
+				modeListeners.forEach(cb => cb(payload.mode));
+			}
+		} else if (channel === "lifecycle") {
+			lifecycleListeners.forEach(cb => cb(payload.event));
+		}
+	});
+
+	// Alias for compatibility with main renderer API
+	window.api = {
+		backend: {
+			get: window.paws.get,
+			post: window.paws.post
+		},
+		storage: window.paws.storage,
+		electron: {
+			showOpenDialog: window.paws.showOpenDialog,
+			restartApp: window.paws.restartApp,
+			resizeWindow: window.paws.resizeWindow
+		}
+	};
+
+	// Auto-signal Ready
+	if (document.readyState === "complete" || document.readyState === "interactive") {
+		setTimeout(() => window.parent.postMessage({ channel: "paws:client-ready", id: 0 }, "*"), 0);
+	} else {
+		window.addEventListener("DOMContentLoaded", () => {
+			window.parent.postMessage({ channel: "paws:client-ready", id: 0 }, "*");
+		});
+	}
 })();

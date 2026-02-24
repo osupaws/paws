@@ -1,5 +1,5 @@
-appId: com.paws.Paws
-productName: Paws
+appId: org.osupaws.paws
+productName: paws
 directories:
   buildResources: build
 files:
@@ -35,13 +35,14 @@ dmg:
 linux:
   target:
     - AppImage
-  maintainer: https://github.com/shsh-x/pawsp
+  maintainer: https://github.com/shsh-x
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  owner: osupaws
+  repo: paws
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/

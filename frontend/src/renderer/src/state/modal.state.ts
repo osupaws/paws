@@ -28,3 +28,8 @@ export function closePlugins(): void {
 export function togglePlugins(): void {
 	modalState.isPluginsOpen = !modalState.isPluginsOpen;
 }
+
+export function closeAllModals(): void {
+	modalState.isSettingsOpen = false;
+	modalState.isPluginsOpen = false;
+}

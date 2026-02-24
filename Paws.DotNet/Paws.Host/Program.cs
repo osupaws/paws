@@ -1,8 +1,23 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Paws.Core.Abstractions;
-using Paws.Host;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using PawsHost = Paws.Core.Abstractions.Interfaces.Services.IHost;
+using Paws.Core.Abstractions.Models;
+using Paws.Host.Services.Core;
+using Paws.Host.Services.Lazer;
+using Paws.Host.Services.Stable;
+using Paws.Core.Abstractions.Interfaces.Services;
+using Paws.Core.Abstractions.Enums;
 using System.Text;
 using System.Text.Json;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.IO;
 
 // Must be registered to support legacy encodings in .osu files.
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -34,7 +49,24 @@ builder.Services.AddSingleton<ThemeImporterService>(); // For importing themes
 builder.Services.AddSingleton<PluginRepositoryService>(); // For the plugin store
 builder.Services.AddSingleton<PluginManager>();
 builder.Services.AddSingleton<PluginInstallerService>();
-builder.Services.AddSingleton<IHostServices, HostServices>();
+
+// Register a dedicated system logger to break the circular dependency between HostServices and StorageService.
+builder.Services.AddSingleton<Paws.Core.Abstractions.Interfaces.Services.ILogger>(sp =>
+    new PawsSystemLogger(sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<Program>>()));
+
+// Register System-level Storage and Image services
+builder.Services.AddSingleton<Paws.Core.Abstractions.Interfaces.Services.IStorageService>(sp =>
+{
+    var pawsDb = sp.GetRequiredService<PawsDbService>();
+    var pawsLogger = sp.GetRequiredService<Paws.Core.Abstractions.Interfaces.Services.ILogger>();
+    var osuPath = pawsDb.GetSetting("osu.path")?.Value ?? string.Empty;
+    // Permissions: "filesystem-ext" for system (Frontend has full access)
+    return new StorageService("System", new List<string> { "filesystem-ext" }, osuPath, pawsLogger);
+});
+builder.Services.AddSingleton<Paws.Core.Abstractions.Interfaces.Services.IImageProcessor, ImageProcessorService>();
+
+builder.Services.AddSingleton<PawsHost, HostServices>();
+builder.Services.AddHostedService<HeartbeatService>(); // Register the heartbeat background service
 builder.Services.AddHttpClient(); // For PluginRepositoryService
 
 var app = builder.Build();
@@ -42,21 +74,28 @@ var app = builder.Build();
 // --- Asynchronous Service Initialization ---
 var pawsDb = app.Services.GetRequiredService<PawsDbService>();
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
+var host = app.Services.GetRequiredService<PawsHost>(); // Get Host for progress logging
+
+host.Logger.LogProgress("Initializing Database...", 10);
 try
 {
     await pawsDb.InitializeAsync();
+    host.Logger.LogProgress("Database Initialized", 40);
 }
 catch (Exception ex)
 {
     logger.LogCritical(ex, "PawsDbService failed to initialize. The application will now exit.");
-    // Exit gracefully if the main DB can't be opened.
     return;
 }
 
 // --- Plugin Loading ---
+host.Logger.LogProgress("Discovering Plugins...", 50);
 var pluginManager = app.Services.GetRequiredService<PluginManager>();
-pluginManager.DiscoverAndLoadPlugins(); // Loads all active plugins from DB
+pluginManager.DiscoverAndLoadPluginsAsync().Wait();
+host.Logger.LogProgress("Plugins Loaded", 90);
+
 logger.LogInformation("Paws.Host C# Backend started successfully.");
+host.Logger.LogProgress("Backend Ready", 100);
 
 // --- API Endpoints ---
 
@@ -64,7 +103,8 @@ var api = app.MapGroup("/api");
 
 // --- Theme Management Endpoints ---
 var themesApi = api.MapGroup("/themes");
-themesApi.MapGet("/", (PawsDbService db) => {
+themesApi.MapGet("/", (PawsDbService db) =>
+{
     // The service now returns DTOs directly, so no projection is needed here.
     return Results.Ok(db.GetAllThemes());
 });
@@ -117,11 +157,13 @@ api.MapGet("/files/{hash}", async (string hash, FileStorageService storage, Paws
 
 // --- Path Management Endpoints ---
 var pathsApi = api.MapGroup("/paths");
-pathsApi.MapPost("/stable", ([FromBody] SetPathRequest req, StableDbService service) => {
+pathsApi.MapPost("/stable", ([FromBody] SetPathRequest req, StableDbService service) =>
+{
     service.SetStablePath(req.Path);
     return Results.Ok();
 });
-pathsApi.MapPost("/lazer", ([FromBody] SetPathRequest req, LazerDbService service) => {
+pathsApi.MapPost("/lazer", ([FromBody] SetPathRequest req, LazerDbService service) =>
+{
     service.SetLazerPath(req.Path);
     return Results.Ok();
 });
@@ -129,13 +171,15 @@ pathsApi.MapPost("/lazer", ([FromBody] SetPathRequest req, LazerDbService servic
 
 // --- Configuration Management Endpoints (Legacy Adapter) ---
 var configApi = api.MapGroup("/config");
-configApi.MapGet("", (PawsDbService db) => {
+configApi.MapGet("", (PawsDbService db) =>
+{
     var stable = db.GetSetting("core.paths.stable")?.Value;
     var lazer = db.GetSetting("core.paths.lazer")?.Value;
     var legacy = db.GetSetting("core.modes.legacy")?.Value == "true";
     return Results.Ok(new { IsLegacyMode = legacy, StablePath = stable, LazerPath = lazer });
 });
-configApi.MapPost("", ([FromBody] UpdateConfigRequest req, PawsDbService db) => {
+configApi.MapPost("", ([FromBody] UpdateConfigRequest req, PawsDbService db) =>
+{
     if (req.IsLegacyMode.HasValue) db.SetSetting("core.modes.legacy", req.IsLegacyMode.Value.ToString().ToLower(), "bool");
     if (req.StablePath != null) db.SetSetting("core.paths.stable", req.StablePath, "string");
     if (req.LazerPath != null) db.SetSetting("core.paths.lazer", req.LazerPath, "string");
@@ -145,26 +189,99 @@ configApi.MapPost("", ([FromBody] UpdateConfigRequest req, PawsDbService db) => 
 // --- Generic Settings Management Endpoints ---
 var settingsApi = api.MapGroup("/settings");
 settingsApi.MapGet("", (PawsDbService db) => Results.Ok(db.GetAllSettings()));
-settingsApi.MapGet("{key}", (string key, PawsDbService db) => {
+settingsApi.MapGet("{key}", (string key, PawsDbService db) =>
+{
     var setting = db.GetSetting(key);
     return setting != null ? Results.Ok(setting) : Results.NotFound();
 });
-settingsApi.MapPost("", ([FromBody] UpdateSettingRequest req, PawsDbService db) => {
+settingsApi.MapPost("", ([FromBody] UpdateSettingRequest req, PawsDbService db) =>
+{
     db.SetSetting(req.Key, req.Value, req.Type);
     return Results.Ok();
 });
 
+// --- Asset Management Endpoints ---
+var assetsApi = api.MapGroup("/assets");
 
-// --- Plugin Management Endpoints ---
+assetsApi.MapPost("/upload", async (HttpRequest request, PawsHost host, ILogger<Program> logger) =>
+{
+    try
+    {
+        if (!request.HasFormContentType) return Results.BadRequest("Multipart form required.");
+        var form = await request.ReadFormAsync();
+        var file = form.Files.FirstOrDefault();
+        if (file == null) return Results.BadRequest("No file uploaded.");
+
+        using var stream = file.OpenReadStream();
+        var ext = Path.GetExtension(file.FileName).TrimStart('.');
+        var assetId = await host.Storage.StoreAssetAsync(stream, ext);
+
+        return Results.Ok(new { AssetId = assetId });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Asset upload failed.");
+        return Results.Problem(ex.Message);
+    }
+});
+
+assetsApi.MapGet("/{assetId}", (string assetId, PawsHost host) =>
+{
+    try
+    {
+        var stream = host.Storage.GetAssetStream(assetId);
+        // We don't store MIME type, so we default to octet-stream and let the browser sniff or the UI handle it.
+        return Results.Stream(stream, "application/octet-stream");
+    }
+    catch (FileNotFoundException)
+    {
+        return Results.NotFound();
+    }
+});
+assetsApi.MapPost("/process", async ([FromBody] ProcessAssetRequest req, PawsHost host, ILogger<Program> logger) =>
+{
+    try
+    {
+        var resultStream = await host.Image.ProcessAssetAsync(req.AssetId, req.Options);
+        return Results.Stream(resultStream, "image/jpeg"); // Default to JPEG for now
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Image processing failed for asset {AssetId}", req.AssetId);
+        return Results.Problem(ex.Message);
+    }
+});
+
+var storageApi = api.MapGroup("/storage");
+storageApi.MapPost("/upload-temp", async (HttpRequest request, PawsHost host) =>
+{
+    if (!request.HasFormContentType) return Results.BadRequest("Multipart form required.");
+    var form = await request.ReadFormAsync();
+    var file = form.Files.FirstOrDefault();
+    if (file == null) return Results.BadRequest("No file uploaded.");
+
+    using var stream = file.OpenReadStream();
+    var handle = await host.Storage.StoreTempAsync(stream);
+    return Results.Ok(new { TempHandle = handle });
+});
+
+storageApi.MapPost("/upload-temp-path", async ([FromBody] StoragePathRequest req, PawsHost host) =>
+{
+    if (string.IsNullOrEmpty(req.Path)) return Results.BadRequest("Path is required.");
+    var handle = await host.Storage.StoreTempByPathAsync(req.Path);
+    return Results.Ok(new { TempHandle = handle });
+});
+
 var pluginsApi = api.MapGroup("/plugins");
 
-pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, PluginInstallerService installer, PluginManager pm, ILogger<Program> logger) => {
+pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, PluginInstallerService installer, PluginManager pm, ILogger<Program> logger) =>
+{
     try
     {
         var manifest = await installer.InstallPluginAsync(req.FilePath);
 
         // Reload plugins to pick up the new one (hot reload)
-        pm.ReloadPlugin(manifest.Id);
+        await pm.ReloadPluginAsync(manifest.Id);
 
         return Results.Ok(manifest);
     }
@@ -175,16 +292,24 @@ pluginsApi.MapPost("/install", async ([FromBody] InstallPluginRequest req, Plugi
     }
 });
 
-pluginsApi.MapPost("/toggle-active", ([FromBody] TogglePluginRequest req, PluginManager pm) =>
+pluginsApi.MapPost("/toggle-active", async ([FromBody] TogglePluginRequest req, PluginManager pm) =>
 {
-    pm.SetPluginActive(req.Id, req.IsActive);
+    await pm.SetPluginActiveAsync(req.Id, req.IsActive);
     return Results.Ok();
 });
 
-pluginsApi.MapGet("/loaded", (PluginManager pm) => {
+pluginsApi.MapPost("/toggle-ui", async ([FromBody] TogglePluginUiRequest req, PluginManager pm) =>
+{
+    await pm.SetPluginUiStateAsync(req.Id, req.IsAwake);
+    return Results.Ok();
+});
+
+pluginsApi.MapGet("/loaded", (PluginManager pm) =>
+{
     // Return a DTO (Data Transfer Object) to control the data shape.
-    var result = pm.GetLoadedPlugins().Select(p => {
-        var manifest = pm.GetAllPlugins().FirstOrDefault(m => m.Id.Equals(p.Id.ToString(), StringComparison.OrdinalIgnoreCase));
+    var result = pm.GetLoadedPlugins().Select(p =>
+    {
+        var manifest = pm.GetAllPlugins().FirstOrDefault(m => m.Id.Equals(p.Id, StringComparison.OrdinalIgnoreCase));
         return new
         {
             p.Id,
@@ -195,7 +320,8 @@ pluginsApi.MapGet("/loaded", (PluginManager pm) => {
             manifest?.Permissions,
             manifest?.Provides,
             manifest?.Consumes,
-            Ui = manifest?.Ui
+            Ui = manifest?.Ui,
+            isActive = true
         };
     });
     return Results.Ok(result);
@@ -203,7 +329,8 @@ pluginsApi.MapGet("/loaded", (PluginManager pm) => {
 
 pluginsApi.MapGet("/discovered", (PluginManager pm) => Results.Ok(pm.GetAllPlugins()));
 
-pluginsApi.MapPost("/execute/{pluginId}", async (Guid pluginId, [FromBody] ExecuteCommandRequest req, PluginManager pm) => {
+pluginsApi.MapPost("/execute/{pluginId}", async (string pluginId, [FromBody] ExecuteCommandRequest req, PluginManager pm) =>
+{
     var plugin = pm.GetPluginById(pluginId);
     if (plugin == null) return Results.NotFound($"Plugin with ID {pluginId} not found or not loaded.");
     if (string.IsNullOrEmpty(req.CommandName)) return Results.BadRequest("CommandName is required.");
@@ -221,22 +348,35 @@ pluginsApi.MapPost("/execute/{pluginId}", async (Guid pluginId, [FromBody] Execu
 
 // Serve plugin UI files (e.g. for paws-plugin protocol)
 // Serve plugin UI files (e.g. for paws-plugin protocol)
-pluginsApi.MapGet("/{pluginId}/files/{*path}", async (string pluginId, string path, PawsDbService db, FileStorageService storage) => {
+pluginsApi.MapGet("/{pluginId}/files/{*path}", async (string pluginId, string path, PawsDbService db, FileStorageService storage, ILogger<Program> logger) =>
+{
+    logger.LogInformation("Serving file: PluginId={PluginId}, Path={Path}", pluginId, path);
     var config = db.GetRealmConfiguration();
     using var realm = Realms.Realm.GetInstance(config);
 
     var plugin = realm.Find<Paws.Host.Data.Schemas.Plugin>(pluginId);
-    if (plugin == null) return Results.NotFound();
+    if (plugin == null)
+    {
+        logger.LogWarning("Plugin not found: {PluginId}", pluginId);
+        return Results.NotFound();
+    }
 
     // Mapping strategy: The Paws UI protocol serves from the 'ui' folder by default.
     // We try to find 'ui/{path}' first, then '{path}'.
     // Using simple linear search for now as file counts per plugin are small.
     var targetPath = path.Replace("\\", "/");
 
+    // Try finding exact match or UI prefix match
     var file = plugin.Files.FirstOrDefault(f => f.VirtualPath.Equals($"ui/{targetPath}", StringComparison.OrdinalIgnoreCase))
             ?? plugin.Files.FirstOrDefault(f => f.VirtualPath.Equals(targetPath, StringComparison.OrdinalIgnoreCase));
 
-    if (file == null) return Results.NotFound();
+    if (file == null)
+    {
+        // Log all available files for debugging
+        var allFiles = string.Join(", ", plugin.Files.ToList().Select(f => f.VirtualPath));
+        logger.LogWarning("File not found in plugin manifest. Target: '{Target}', Available: [{Files}]", targetPath, allFiles);
+        return Results.NotFound();
+    }
 
     var fileData = await storage.RetrieveFileAsync(file.BlobHash);
     if (fileData == null) return Results.NotFound();
@@ -260,9 +400,19 @@ pluginsApi.MapGet("/{pluginId}/files/{*path}", async (string pluginId, string pa
 });
 
 // Endpoint for the future plugin store feature
-pluginsApi.MapGet("/store", async (PluginRepositoryService repoService) => {
+pluginsApi.MapGet("/store", async (PluginRepositoryService repoService) =>
+{
     var availablePlugins = await repoService.GetAvailablePluginsAsync();
     return Results.Ok(availablePlugins);
+});
+
+
+// --- Debugging Endpoints ---
+api.MapPost("/debug/kill", () =>
+{
+    // Simulate a crash by killing the process
+    Environment.Exit(-1);
+    return Results.Ok();
 });
 
 app.Run();
@@ -275,3 +425,17 @@ public record UpdateConfigRequest(bool? IsLegacyMode, string? StablePath, string
 public record UpdateSettingRequest(string Key, string Value, string Type = "string");
 public record InstallPluginRequest(string FilePath);
 public record TogglePluginRequest(string Id, bool IsActive);
+public record TogglePluginUiRequest(string Id, bool IsAwake);
+public record StoragePathRequest(string Path);
+public record ProcessAssetRequest(string AssetId, ImageProcessOptions Options);
+
+// Simple logger implementation to satisfy Paws interfaces without circular dependencies in DI.
+public class PawsSystemLogger : Paws.Core.Abstractions.Interfaces.Services.ILogger
+{
+    private readonly Microsoft.Extensions.Logging.ILogger _logger;
+    public PawsSystemLogger(Microsoft.Extensions.Logging.ILogger logger) => _logger = logger;
+    public void LogMessage(string message, PawsLogLvl level, string? pluginName)
+        => _logger.Log((Microsoft.Extensions.Logging.LogLevel)level, "[{Plugin}] {Message}", pluginName ?? "System", message);
+    public void LogProgress(string message, double percent)
+        => _logger.LogInformation("[Progress {Percent}%] {Message}", percent, message);
+}
