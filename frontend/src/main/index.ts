@@ -263,11 +263,19 @@ app.whenReady().then(async () => {
 
 	// Wait for updater to finish checking/downloading before showing the main app
 	canProceedPromise.then(() => {
-		createMainWindow();
-		const splashWindow = appState.get("splashWindow");
-		if (splashWindow && !splashWindow.isDestroyed()) {
-			splashWindow.close();
-		}
+		const mainWindow = createMainWindow();
+
+		mainWindow.once("ready-to-show", () => {
+			// Small delay to ensure the renderer has actually painted and avoid FOUC (black rectangle)
+			setTimeout(() => {
+				const splashWindow = appState.get("splashWindow");
+				if (splashWindow && !splashWindow.isDestroyed()) {
+					splashWindow.close();
+				}
+				mainWindow.show();
+				mainWindow.focus();
+			}, 800);
+		});
 
 		app.on("activate", function () {
 			if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
