@@ -4,6 +4,7 @@ import { electronAPI } from "@electron-toolkit/preload";
 import { electronIpc } from "@preload/ipc/electron.ipc";
 import { splashIpc } from "@preload/ipc/splash.ipc";
 import { themesIpc } from "@preload/ipc/themes.ipc";
+import { updaterIpc } from "@preload/ipc/updater.ipc";
 import { contextBridge, ipcRenderer } from "electron";
 
 // --- START: ADDED CODE ---
@@ -33,7 +34,9 @@ const api = {
 
 	splash: splashIpc,
 	themes: themesIpc,
+	updater: updaterIpc,
 	// --- START: ADDED CODE ---
+
 	backend: backendApi,
 	storage: storageApi
 	// --- END: ADDED CODE ---
