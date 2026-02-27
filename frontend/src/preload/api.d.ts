@@ -1,6 +1,15 @@
 import { ElectronAPI } from "@preload/ipc/electron.ipc";
 import { SplashAPI } from "@preload/ipc/splash.ipc";
 import { ThemesAPI } from "@preload/ipc/themes.ipc";
+import { UpdateStatus } from "@main/updater";
+
+export interface UpdaterAPI {
+	check: () => Promise<void>;
+	download: () => Promise<void>;
+	install: () => Promise<void>;
+	onStatus: (callback: (status: UpdateStatus) => void) => () => void;
+	getStatus: () => void;
+}
 
 export interface BackendAPI {
 	get: (endpoint: string) => Promise<any>;
@@ -21,6 +30,8 @@ export interface PawsAPI {
 
 	splash: SplashAPI;
 	themes: ThemesAPI;
+	updater: UpdaterAPI;
 	backend: BackendAPI;
+
 	storage: StorageAPI;
 }

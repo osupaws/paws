@@ -4,6 +4,7 @@ import "@main/ipc/register-ipc";
 
 import { electronApp, is } from "@electron-toolkit/utils";
 import { startBackend, stopBackend } from "@main/backend/backend";
+import { appState } from "@main/state/app.state";
 import { createMainWindow } from "@main/windows/main/main.window";
 import { createSplashWindow } from "@main/windows/splash/splash.window";
 import { app, BrowserWindow, ipcMain, net, protocol } from "electron";
@@ -11,6 +12,8 @@ import log from "electron-log";
 import { existsSync } from "fs";
 import { join, normalize } from "path";
 import { pathToFileURL } from "url";
+
+import { canProceedPromise, initializeUpdater } from "./updater";
 
 app.setPath("userData", join(app.getPath("appData"), "Paws", "Frontend"));
 app.name = "Paws"; // Set the application name for AppData paths
@@ -255,16 +258,28 @@ app.whenReady().then(async () => {
 	});
 
 	createSplashWindow();
-	createMainWindow();
-
-	if (is.dev) {
-		log.info(`Development Mode: ELECTRON_RENDERER_URL = ${process.env.ELECTRON_RENDERER_URL}`);
-	}
-
 	startBackend();
+	initializeUpdater();
 
-	app.on("activate", function () {
-		if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+	// Wait for updater to finish checking/downloading before showing the main app
+	canProceedPromise.then(() => {
+		const mainWindow = createMainWindow();
+
+		mainWindow.once("ready-to-show", () => {
+			// Small delay to ensure the renderer has actually painted and avoid FOUC (black rectangle)
+			setTimeout(() => {
+				const splashWindow = appState.get("splashWindow");
+				if (splashWindow && !splashWindow.isDestroyed()) {
+					splashWindow.close();
+				}
+				mainWindow.show();
+				mainWindow.focus();
+			}, 800);
+		});
+
+		app.on("activate", function () {
+			if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+		});
 	});
 });
 

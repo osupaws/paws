@@ -29,13 +29,8 @@ export const createMainWindow = (): BrowserWindow => {
 	});
 	appState.set("mainWindow", mainWindow);
 
-	// mainWindow.on("ready-to-show", () => {
-	// 	mainWindow.show();
-
-	// 	if (splashWindow) {
-	// 		splashWindow.destroy();
-	// 	}
-	// });
+	// We handle showing the window in index.ts after the splash/update flow
+	// to ensure a smooth transition.
 
 	mainWindow.webContents.setWindowOpenHandler(details => {
 		shell.openExternal(details.url);

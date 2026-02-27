@@ -1,6 +1,6 @@
 {
 	"name": "paws-app",
-	"version": "0.0.1-alpha",
+	"version": "0.0.2-alpha",
 	"description": "u got paws. i'll do it for u.",
 	"main": "./out/main/index.js",
 	"author": "paws-team",
