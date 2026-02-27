@@ -22,6 +22,8 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  differentialPackage: true
+
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
@@ -39,6 +41,8 @@ linux:
   category: Utility
 appImage:
   artifactName: ${name}-${version}.${ext}
+  differentialPackage: true
+
 npmRebuild: false
 publish:
   provider: github
