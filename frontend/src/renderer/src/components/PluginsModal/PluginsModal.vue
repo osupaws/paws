@@ -40,9 +40,6 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 		</template>
 
 		<div class="cards-container">
-			<div style="height: 10px"></div>
-			<!-- Spacer -->
-
 			<div class="plugins-list">
 				<PawsSpoilerCard v-for="plugin in pluginState.allInstalledPlugins" :key="plugin.id">
 					<template #header>
@@ -101,9 +98,6 @@ const handleToggle = async (id: string, isActive: boolean): Promise<void> => {
 					no plugins installed yet
 				</div>
 			</div>
-
-			<div style="height: 20px"></div>
-			<!-- Spacer -->
 		</div>
 	</PawsModal>
 </template>

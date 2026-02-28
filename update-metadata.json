@@ -1,4 +1,6 @@
 {
   "minVersion": "0.0.2-alpha",
-  "latestVersion": "0.0.3-alpha"
+  "latestVersion": "0.0.4-alpha",
+  "lazerSchemaVersion": "51"
 }
+

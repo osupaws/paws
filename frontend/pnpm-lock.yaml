@@ -15,8 +15,8 @@ importers:
         specifier: ^4.0.0
         version: 4.0.0(electron@35.7.4)
       '@osupaws/paws-ui':
-        specifier: 0.4.1
-        version: 0.4.1(vue@3.5.18(typescript@5.9.2))
+        specifier: 0.4.2
+        version: 0.4.2(vue@3.5.18(typescript@5.9.2))
       electron-log:
         specifier: ^5.4.1
         version: 5.4.2
@@ -566,8 +566,8 @@ packages:
     engines: {node: ^12.13.0 || ^14.15.0 || >=16.0.0}
     deprecated: This functionality has been moved to @npmcli/fs
 
-  '@osupaws/paws-ui@0.4.1':
-    resolution: {integrity: sha512-2aiwgcHus9SNNZhzrGYOO65YOpKWPWpVVt7BxKNu+Z7CTfa8FuqlZID3mZjE0CcRebcJcNTcNC+Aebe0s1C+RQ==, tarball: https://npm.pkg.github.com/download/@osupaws/paws-ui/0.4.1/08602bd92d9924635b780b382c5611486ee44f21}
+  '@osupaws/paws-ui@0.4.2':
+    resolution: {integrity: sha512-2FZdrDDv9h4vyKxfohs7yJfY+HaBnSoOkKQJm4+pFC7QWXhsGMUsbwWWX+jJzkp0Fyl9Mw85g38L4smn93wmnQ==, tarball: https://npm.pkg.github.com/download/@osupaws/paws-ui/0.4.2/c15ac3da21b410dc0f5d2afd4e4921228dec5dea}
     engines: {node: '>=22.17'}
     peerDependencies:
       vue: ^3.5.18
@@ -3494,7 +3494,7 @@ snapshots:
       mkdirp: 1.0.4
       rimraf: 3.0.2
 
-  '@osupaws/paws-ui@0.4.1(vue@3.5.18(typescript@5.9.2))':
+  '@osupaws/paws-ui@0.4.2(vue@3.5.18(typescript@5.9.2))':
     dependencies:
       vue: 3.5.18(typescript@5.9.2)
 
