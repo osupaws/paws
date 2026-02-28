@@ -111,6 +111,52 @@ export async function initializeUpdater(): Promise<void> {
 		autoUpdater.quitAndInstall();
 	});
 
+	ipcMain.handle("updater:get-version", async () => {
+		const fs = await import("fs");
+		const path = await import("path");
+		// Try to find package.json in app path or one level up (common in dev/prod differences)
+		let pkgPath = path.join(app.getAppPath(), "package.json");
+		if (!fs.existsSync(pkgPath)) {
+			pkgPath = path.join(app.getAppPath(), "..", "package.json");
+		}
+
+		let pkg: any = {};
+		try {
+			pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+		} catch (e) {
+			log.error("[Updater] Could not read package.json:", e);
+		}
+
+		return {
+			app: app.getVersion(),
+			schema: pkg.lazerSchemaVersion || "unknown"
+		};
+	});
+
+	ipcMain.handle("updater:fetch-metadata", async () => {
+		try {
+			// In development, try to read the local file first for instant feedback
+			if (!app.isPackaged) {
+				const fs = await import("fs");
+				const path = await import("path");
+				// Assuming the file is in the root of the project (pawsprtp/update-metadata.json)
+				const localPath = path.join(app.getAppPath(), "..", "update-metadata.json");
+				if (fs.existsSync(localPath)) {
+					const content = fs.readFileSync(localPath, "utf-8");
+					return JSON.parse(content);
+				}
+			}
+
+			const response = await net.fetch(METADATA_URL);
+			if (response.ok) {
+				return await response.json();
+			}
+		} catch (error) {
+			log.error("[Updater] Failed to fetch metadata for UI:", error);
+		}
+		return null;
+	});
+
 	ipcMain.on("updater:get-status", event => {
 		event.reply("updater:status", lastStatus);
 	});

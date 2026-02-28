@@ -77,6 +77,14 @@ const openFolderDialog = async (type: "stable" | "lazer"): Promise<void> => {
 const handleThemeChange = (newThemeId: string): void => {
 	setActiveTheme(newThemeId);
 };
+
+const appVersion = ref("...");
+const schemaVersion = ref("...");
+
+window.api.updater.getVersion().then(v => {
+	appVersion.value = v.app;
+	schemaVersion.value = v.schema;
+});
 </script>
 
 <template>
@@ -184,6 +192,39 @@ const handleThemeChange = (newThemeId: string): void => {
 					/>
 				</div>
 			</PawsCard>
+
+			<PawsCard mode="titled" class="settings-card about-card">
+				<template #heading>
+					<PawsHeading size="lg" font-weight="medium" align="left">about</PawsHeading>
+				</template>
+
+				<div class="about-content">
+					<div class="about-row">
+						<span class="label">paws version:</span>
+						<span class="value">{{ appVersion }}</span>
+					</div>
+					<div class="about-row">
+						<span class="label">lazer schema v:</span>
+						<span class="value">{{ schemaVersion || "..." }}</span>
+					</div>
+					<div class="about-links">
+						<a href="https://github.com/osupaws/paws" target="_blank" class="about-link">
+							github
+						</a>
+						<span class="sep">•</span>
+						<a href="https://t.me/osupaws" target="_blank" class="about-link">telegram</a>
+						<span class="sep">•</span>
+						<a
+							v-paws-tooltip="'paws clan on osu!'"
+							href="https://osu.ppy.sh/teams/23155"
+							target="_blank"
+							class="about-link"
+						>
+							osu! team
+						</a>
+					</div>
+				</div>
+			</PawsCard>
 		</div>
 	</PawsModal>
 </template>
@@ -193,6 +234,7 @@ const handleThemeChange = (newThemeId: string): void => {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
+	box-sizing: border-box;
 }
 
 .settings-card {
@@ -229,5 +271,47 @@ const handleThemeChange = (newThemeId: string): void => {
 
 .input-row :deep(input) {
 	text-transform: lowercase;
+}
+
+.about-content {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	opacity: 0.8;
+}
+
+.about-row {
+	display: flex;
+	justify-content: space-between;
+	font-size: 0.9rem;
+}
+
+.about-row .label {
+	color: var(--paws-text-dim, #888);
+}
+
+.about-links {
+	margin-top: 10px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 10px;
+}
+
+.about-link {
+	color: var(--paws-primary, #ff66aa);
+	text-decoration: none;
+	font-size: 0.85rem;
+	transition: opacity 0.2s ease;
+}
+
+.about-link:hover {
+	opacity: 0.7;
+	text-decoration: underline;
+}
+
+.sep {
+	opacity: 0.3;
+	font-size: 0.8rem;
 }
 </style>

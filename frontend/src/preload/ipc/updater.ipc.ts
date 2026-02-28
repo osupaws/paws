@@ -5,9 +5,16 @@ export const updaterIpc = {
 	download: (): Promise<void> => ipcRenderer.invoke("updater:download"),
 	install: (): Promise<void> => ipcRenderer.invoke("updater:install"),
 	onStatus: (callback: (status: any) => void) => {
-		const listener = (_event, status: any) => callback(status);
+		const listener = (_event: any, status: any): void => callback(status);
 		ipcRenderer.on("updater:status", listener);
-		return () => ipcRenderer.removeListener("updater:status", listener);
+		return (): void => {
+			ipcRenderer.removeListener("updater:status", listener);
+		};
 	},
-	getStatus: () => ipcRenderer.send("updater:get-status")
+
+	getStatus: () => ipcRenderer.send("updater:get-status"),
+	getVersion: (): Promise<{ app: string; schema: string }> =>
+		ipcRenderer.invoke("updater:get-version"),
+
+	fetchMetadata: (): Promise<any> => ipcRenderer.invoke("updater:fetch-metadata")
 };

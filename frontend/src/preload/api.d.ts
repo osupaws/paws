@@ -1,7 +1,7 @@
+import { UpdateStatus } from "@main/updater";
 import { ElectronAPI } from "@preload/ipc/electron.ipc";
 import { SplashAPI } from "@preload/ipc/splash.ipc";
 import { ThemesAPI } from "@preload/ipc/themes.ipc";
-import { UpdateStatus } from "@main/updater";
 
 export interface UpdaterAPI {
 	check: () => Promise<void>;
@@ -9,6 +9,8 @@ export interface UpdaterAPI {
 	install: () => Promise<void>;
 	onStatus: (callback: (status: UpdateStatus) => void) => () => void;
 	getStatus: () => void;
+	getVersion: () => Promise<{ app: string; schema: string }>;
+	fetchMetadata: () => Promise<any>;
 }
 
 export interface BackendAPI {
