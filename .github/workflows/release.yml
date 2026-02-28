@@ -60,7 +60,9 @@ jobs:
       - name: Build and Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PAWS_BACKEND_PATH: "../published_backend"
+
         run: |
           cd frontend
           pnpm run build:backend
