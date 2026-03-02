@@ -95,5 +95,15 @@ namespace Paws.Core.Abstractions.Interfaces.Services
         /// Atomically moves a temporary file to a target path within the plugin's data directory.
         /// </summary>
         void MoveTempToData(string handle, string targetPath);
+
+        /// <summary>
+        /// Copies a directory recursively. Subject to permission checks.
+        /// </summary>
+        Task CopyDirectoryAsync(string sourcePath, string destinationPath, bool recursive = true);
+
+        /// <summary>
+        /// Moves a directory. Subject to permission checks.
+        /// </summary>
+        void MoveDirectory(string sourcePath, string destinationPath);
     }
 }

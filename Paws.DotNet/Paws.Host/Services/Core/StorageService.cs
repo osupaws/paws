@@ -17,20 +17,25 @@ namespace Paws.Host.Services.Core
         private readonly string _assetsPath;
         private readonly string _pluginId;
         private readonly List<string> _permissions;
-        private readonly string _osuPath;
+        private readonly string _lazerPath;
+        private readonly string _stablePath;
         private readonly ILogger _logger;
 
         private readonly string _globalTempPath;
+        private DateTime _lastProcessCheck = DateTime.MinValue;
+        private bool _isGameRunningCached = false;
 
         public StorageService(
             string pluginId,
             List<string> permissions,
-            string osuPath,
+            string lazerPath,
+            string stablePath,
             ILogger logger)
         {
             _pluginId = pluginId;
             _permissions = permissions ?? new List<string>();
-            _osuPath = osuPath;
+            _lazerPath = lazerPath;
+            _stablePath = stablePath;
             _logger = logger;
 
             // Paths: %AppData%/Paws/Plugins/{ID}/Data
@@ -133,6 +138,44 @@ namespace Paws.Host.Services.Core
 
             if (File.Exists(targetPath)) File.Delete(targetPath);
             File.Move(sourcePath, targetPath);
+        }
+
+        public async Task CopyDirectoryAsync(string sourcePath, string destinationPath, bool recursive = true)
+        {
+            ValidateAccess(sourcePath, FileAccess.Read);
+            ValidateAccess(destinationPath, FileAccess.Write);
+
+            var dir = new DirectoryInfo(sourcePath);
+            if (!dir.Exists) throw new DirectoryNotFoundException($"Source directory not found: {sourcePath}");
+
+            var dirs = dir.GetDirectories();
+            Directory.CreateDirectory(destinationPath);
+
+            foreach (var file in dir.GetFiles())
+            {
+                string targetFilePath = Path.Combine(destinationPath, file.Name);
+                file.CopyTo(targetFilePath, true);
+            }
+
+            if (recursive)
+            {
+                foreach (var subDir in dirs)
+                {
+                    string newDestinationDir = Path.Combine(destinationPath, subDir.Name);
+                    await CopyDirectoryAsync(subDir.FullName, newDestinationDir, true);
+                }
+            }
+        }
+
+        public void MoveDirectory(string sourcePath, string destinationPath)
+        {
+            ValidateAccess(sourcePath, FileAccess.Write);
+            ValidateAccess(destinationPath, FileAccess.Write);
+
+            if (!Directory.Exists(sourcePath)) throw new DirectoryNotFoundException($"Source directory not found: {sourcePath}");
+
+            if (Directory.Exists(destinationPath)) Directory.Delete(destinationPath, true);
+            Directory.Move(sourcePath, destinationPath);
         }
 
         public async Task<string> StoreAssetAsync(Stream stream, string extension)
@@ -238,10 +281,40 @@ namespace Paws.Host.Services.Core
             }
 
             // 3. Check filesystem-osu (Access to osu! folder)
-            if (_permissions.Contains("filesystem-osu") && !string.IsNullOrEmpty(_osuPath))
+            if (_permissions.Contains("filesystem-osu"))
             {
-                if (fullPath.StartsWith(_osuPath, StringComparison.OrdinalIgnoreCase))
+                bool isOsuPath = false;
+                if (!string.IsNullOrEmpty(_lazerPath) && fullPath.StartsWith(_lazerPath, StringComparison.OrdinalIgnoreCase))
                 {
+                    isOsuPath = true;
+                }
+                else if (!string.IsNullOrEmpty(_stablePath) && fullPath.StartsWith(_stablePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    isOsuPath = true;
+                }
+
+                if (isOsuPath)
+                {
+                    // Automatic protection: block writes if game is running
+                    if (access != FileAccess.Read)
+                    {
+                        if (DateTime.Now - _lastProcessCheck > TimeSpan.FromSeconds(1))
+                        {
+                            // On Windows both often use "osu!", on Linux/Mac lazer is "osu"
+                            string processName = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) ? "osu!" : "osu";
+                            _isGameRunningCached = System.Diagnostics.Process.GetProcessesByName(processName).Any();
+                            _lastProcessCheck = DateTime.Now;
+                        }
+
+                        if (_isGameRunningCached)
+                        {
+                            // Throw appropriate exception based on which game folder is being accessed
+                            if (!string.IsNullOrEmpty(_lazerPath) && fullPath.StartsWith(_lazerPath, StringComparison.OrdinalIgnoreCase))
+                                throw new Paws.Core.Abstractions.Exceptions.LazerIsRunningException();
+
+                            throw new Paws.Core.Abstractions.Exceptions.StableIsRunningException();
+                        }
+                    }
                     return;
                 }
             }

@@ -5,6 +5,7 @@ using Paws.Core.Abstractions.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace Paws.Host.Services.Stable
 {
@@ -70,13 +71,19 @@ namespace Paws.Host.Services.Stable
             if (_stableRootPath != null && Path.IsPathRooted(path)) ValidatePath(path);
             if (!File.Exists(path)) throw new FileNotFoundException("osu!.db not found", path);
             var db = DatabaseDecoder.DecodeOsu(path);
-            return new StableDatabase(db);
+            return MapDatabase(db);
         }
 
         public void WriteOsuDatabase(StableDatabase db, string path)
         {
             if (_stableRootPath != null && Path.IsPathRooted(path)) ValidatePath(path);
-            db.Save(path);
+
+            // Re-decode or create new OsuDatabase to save (OsuParsers doesn't support easy DTO->Obj mapping)
+            // For now, we assume plugins only READ the database or we'd need a more complex mapping back.
+            var internalDb = DatabaseDecoder.DecodeOsu(path);
+            internalDb.PlayerName = db.PlayerName;
+            // ... map back others if needed
+            internalDb.Save(path);
         }
 
         public StableBeatmapContent ParseBeatmap(string path)
@@ -84,7 +91,7 @@ namespace Paws.Host.Services.Stable
             if (_stableRootPath != null && Path.IsPathRooted(path)) ValidatePath(path);
             if (!File.Exists(path)) throw new FileNotFoundException("Beatmap file not found", path);
             var map = BeatmapDecoder.Decode(path);
-            return new StableBeatmapContent(map);
+            return MapBeatmapContent(map);
         }
 
         public StableStoryboard ParseStoryboard(string path)
@@ -92,7 +99,7 @@ namespace Paws.Host.Services.Stable
             if (_stableRootPath != null && Path.IsPathRooted(path)) ValidatePath(path);
             if (!File.Exists(path)) throw new FileNotFoundException("Storyboard file not found", path);
             var sb = StoryboardDecoder.Decode(path);
-            return new StableStoryboard(sb);
+            return MapStoryboard(sb);
         }
 
         public HashSet<string> GetUsedAssets(string songFolderPath)
@@ -106,15 +113,15 @@ namespace Paws.Host.Services.Stable
             {
                 try
                 {
-                    var map = new StableBeatmapContent(BeatmapDecoder.Decode(file));
+                    var map = MapBeatmapContent(BeatmapDecoder.Decode(file));
                     if (!string.IsNullOrEmpty(map.AudioFilename)) usedFiles.Add(map.AudioFilename);
                     if (!string.IsNullOrEmpty(map.BackgroundImage)) usedFiles.Add(map.BackgroundImage);
                     if (!string.IsNullOrEmpty(map.Video)) usedFiles.Add(map.Video);
 
-                    foreach (var sample in map.GetHitSoundSamples()) usedFiles.Add(sample);
+                    foreach (var sample in map.HitSoundSamples) usedFiles.Add(sample);
                     if (map.EventsStoryboard != null)
                     {
-                        foreach (var sbFile in map.EventsStoryboard.GetAllReferencedFiles()) usedFiles.Add(sbFile);
+                        foreach (var sbFile in map.EventsStoryboard.ReferencedFiles) usedFiles.Add(sbFile);
                     }
                 }
                 catch { }
@@ -125,12 +132,65 @@ namespace Paws.Host.Services.Stable
             {
                 try
                 {
-                    var sb = new StableStoryboard(StoryboardDecoder.Decode(file));
-                    foreach (var sbFile in sb.GetAllReferencedFiles()) usedFiles.Add(sbFile);
+                    var sb = MapStoryboard(StoryboardDecoder.Decode(file));
+                    foreach (var sbFile in sb.ReferencedFiles) usedFiles.Add(sbFile);
                 }
                 catch { }
             }
             return usedFiles;
+        }
+
+        // --- Mapping Helpers ---
+
+        private StableDatabase MapDatabase(OsuParsers.Database.OsuDatabase db) => new StableDatabase
+        {
+            PlayerName = db.PlayerName,
+            OsuVersion = db.OsuVersion,
+            Beatmaps = db.Beatmaps.Select(b => new StableBeatmap
+            {
+                Artist = b.Artist,
+                Title = b.Title,
+                Difficulty = b.Difficulty,
+                Creator = b.Creator,
+                Ruleset = (int)b.Ruleset,
+                MD5Hash = b.MD5Hash,
+                FolderName = b.FolderName,
+                FileName = b.FileName,
+                AudioFileName = b.AudioFileName,
+                BeatmapId = b.BeatmapId,
+                BeatmapSetId = b.BeatmapSetId
+            }).ToList()
+        };
+
+        private StableBeatmapContent MapBeatmapContent(OsuParsers.Beatmaps.Beatmap map) => new StableBeatmapContent
+        {
+            AudioFilename = map.GeneralSection.AudioFilename,
+            BackgroundImage = map.EventsSection.BackgroundImage,
+            Video = map.EventsSection.Video,
+            HitSoundSamples = map.HitObjects
+                .Select(h => h.Extras.SampleFileName)
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Distinct().ToList(),
+            EventsStoryboard = map.EventsSection.Storyboard != null ? MapStoryboard(map.EventsSection.Storyboard) : null
+        };
+
+        private StableStoryboard MapStoryboard(OsuParsers.Storyboards.Storyboard sb)
+        {
+            var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            void Extract(OsuParsers.Storyboards.Interfaces.IStoryboardObject obj)
+            {
+                if (obj is OsuParsers.Storyboards.Objects.StoryboardSprite sprite) files.Add(sprite.FilePath);
+                if (obj is OsuParsers.Storyboards.Objects.StoryboardAnimation anim) files.Add(anim.FilePath);
+            }
+
+            foreach (var layer in new[] { sb.BackgroundLayer, sb.FailLayer, sb.PassLayer, sb.ForegroundLayer, sb.OverlayLayer })
+            {
+                foreach (var obj in layer) Extract(obj);
+            }
+
+            foreach (var sample in sb.SamplesLayer) files.Add(sample.FilePath);
+
+            return new StableStoryboard { ReferencedFiles = files.ToList() };
         }
     }
 }

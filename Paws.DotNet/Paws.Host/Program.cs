@@ -59,11 +59,14 @@ builder.Services.AddSingleton<Paws.Core.Abstractions.Interfaces.Services.IStorag
 {
     var pawsDb = sp.GetRequiredService<PawsDbService>();
     var pawsLogger = sp.GetRequiredService<Paws.Core.Abstractions.Interfaces.Services.ILogger>();
-    var osuPath = pawsDb.GetSetting("osu.path")?.Value ?? string.Empty;
+    var lazerPath = pawsDb.GetSetting("core.paths.lazer")?.Value ?? string.Empty;
+    var stablePath = pawsDb.GetSetting("core.paths.stable")?.Value ?? string.Empty;
     // Permissions: "filesystem-ext" for system (Frontend has full access)
-    return new StorageService("System", new List<string> { "filesystem-ext" }, osuPath, pawsLogger);
+    return new StorageService("System", new List<string> { "filesystem-ext" }, lazerPath, stablePath, pawsLogger);
 });
 builder.Services.AddSingleton<Paws.Core.Abstractions.Interfaces.Services.IImageProcessor, ImageProcessorService>();
+
+
 
 builder.Services.AddSingleton<PawsHost, HostServices>();
 builder.Services.AddHostedService<HeartbeatService>(); // Register the heartbeat background service
