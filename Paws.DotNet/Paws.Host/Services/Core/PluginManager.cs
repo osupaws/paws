@@ -84,11 +84,14 @@ namespace Paws.Host.Services.Core
                 {
                     try
                     {
-                        var osuPath = _dbService.GetSetting("osu.path")?.Value ?? string.Empty;
+                        var lazerPath = _dbService.GetSetting("core.paths.lazer")?.Value ?? string.Empty;
+                        var stablePath = _dbService.GetSetting("core.paths.stable")?.Value ?? string.Empty;
 
                         // Create contextual services for this plugin
                         // Use _globalHost as it implements PawsLogger
-                        var storage = new StorageService(plugin.Id, plugin.Permissions.ToList(), osuPath, (PawsLogger)_globalHost);
+                        var storage = new StorageService(plugin.Id, plugin.Permissions.ToList(), lazerPath, stablePath, _globalHost);
+
+
                         var image = new ImageProcessorService(storage);
 
                         // Create contextual host
