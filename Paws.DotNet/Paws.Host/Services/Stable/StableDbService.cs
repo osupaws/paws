@@ -25,7 +25,19 @@ namespace Paws.Host.Services.Stable
             _logger = logger;
             _pawsDbService = pawsDbService;
             _stableRootPath = _pawsDbService.GetSetting("core.paths.stable")?.Value;
-            _logger.LogInformation("Stable path loaded from DB: {path}", _stableRootPath ?? "Not set");
+
+            if (string.IsNullOrEmpty(_stableRootPath))
+            {
+                var detectedPath = ResolveStablePath();
+                if (!string.IsNullOrEmpty(detectedPath))
+                {
+                    _pawsDbService.SetSetting("core.paths.stable", detectedPath);
+                    _stableRootPath = detectedPath;
+                    _logger.LogInformation("Stable path auto-detected and saved: {path}", detectedPath);
+                }
+            }
+
+            _logger.LogInformation("Stable path resolved: {path}", _stableRootPath ?? "Not set");
         }
 
         public void SetStablePath(string path)
@@ -36,7 +48,25 @@ namespace Paws.Host.Services.Stable
             _pawsDbService.SetSetting("core.paths.stable", path);
         }
 
-        public string? GetStableRootPath() => _pawsDbService.GetSetting("core.paths.stable")?.Value;
+        public string? ResolveStablePath()
+        {
+            if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                return null;
+
+            var defaultPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "osu!");
+            if (File.Exists(Path.Combine(defaultPath, "osu!.exe")))
+                return defaultPath;
+
+            return null;
+        }
+
+        public string? GetStableRootPath()
+        {
+            var saved = _pawsDbService.GetSetting("core.paths.stable")?.Value;
+            if (!string.IsNullOrEmpty(saved)) return saved;
+
+            return ResolveStablePath();
+        }
 
         public async Task<OsuDatabase?> GetOsuDbAsync()
         {
@@ -81,6 +111,26 @@ namespace Paws.Host.Services.Stable
                 _logger.LogError(ex, "Failed to parse {FileName}.", fileName);
                 return null;
             }
+        }
+
+        public static bool IsStableRunning()
+        {
+            try
+            {
+                if (!System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                    return false; // Stable is Windows only
+
+                var processes = System.Diagnostics.Process.GetProcessesByName("osu!");
+                var lazerTargetDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "osulazer", "current");
+
+                // If it's osu!.exe but NOT in lazer directory, it's stable
+                return processes.Any(p =>
+                {
+                    try { return !(p.MainModule?.FileName?.StartsWith(lazerTargetDir, StringComparison.OrdinalIgnoreCase) ?? false); }
+                    catch { return false; }
+                });
+            }
+            catch { return false; }
         }
     }
 }

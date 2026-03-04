@@ -85,7 +85,7 @@ namespace Paws.Host.Services.Core
             {
                 var stablePath = _stableDbService.GetStableRootPath();
                 if (string.IsNullOrEmpty(stablePath)) throw new InvalidOperationException("osu!stable path is not set.");
-                if (Process.GetProcessesByName("osu!").Any()) throw new StableIsRunningException();
+                if (StableDbService.IsStableRunning()) throw new StableIsRunningException();
                 action(stablePath);
             });
         }
