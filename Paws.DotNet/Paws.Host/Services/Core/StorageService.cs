@@ -7,6 +7,8 @@ using Microsoft.Extensions.Logging;
 using Paws.Core.Abstractions.Interfaces.Services;
 using IStorageService = Paws.Core.Abstractions.Interfaces.Services.IStorageService;
 using ILogger = Paws.Core.Abstractions.Interfaces.Services.ILogger;
+using Paws.Host.Services.Lazer;
+using Paws.Host.Services.Stable;
 
 namespace Paws.Host.Services.Core
 {
@@ -296,24 +298,27 @@ namespace Paws.Host.Services.Core
                 if (isOsuPath)
                 {
                     // Automatic protection: block writes if game is running
-                    if (access != FileAccess.Read)
+                    if (access != FileAccess.Write && access != FileAccess.ReadWrite) // Check if write access is requested
+                        return;
+
+                    if (DateTime.Now - _lastProcessCheck > TimeSpan.FromSeconds(1))
                     {
-                        if (DateTime.Now - _lastProcessCheck > TimeSpan.FromSeconds(1))
+                        // Identify which game path we are in
+                        bool isLazer = !string.IsNullOrEmpty(_lazerPath) && fullPath.StartsWith(_lazerPath, StringComparison.OrdinalIgnoreCase);
+                        bool isStable = !string.IsNullOrEmpty(_stablePath) && fullPath.StartsWith(_stablePath, StringComparison.OrdinalIgnoreCase);
+
+                        if (isLazer)
                         {
-                            // On Windows both often use "osu!", on Linux/Mac lazer is "osu"
-                            string processName = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows) ? "osu!" : "osu";
-                            _isGameRunningCached = System.Diagnostics.Process.GetProcessesByName(processName).Any();
-                            _lastProcessCheck = DateTime.Now;
+                            _isGameRunningCached = LazerDbService.IsLazerRunning();
+                            if (_isGameRunningCached) throw new Paws.Core.Abstractions.Exceptions.LazerIsRunningException();
+                        }
+                        else if (isStable)
+                        {
+                            _isGameRunningCached = StableDbService.IsStableRunning();
+                            if (_isGameRunningCached) throw new Paws.Core.Abstractions.Exceptions.StableIsRunningException();
                         }
 
-                        if (_isGameRunningCached)
-                        {
-                            // Throw appropriate exception based on which game folder is being accessed
-                            if (!string.IsNullOrEmpty(_lazerPath) && fullPath.StartsWith(_lazerPath, StringComparison.OrdinalIgnoreCase))
-                                throw new Paws.Core.Abstractions.Exceptions.LazerIsRunningException();
-
-                            throw new Paws.Core.Abstractions.Exceptions.StableIsRunningException();
-                        }
+                        _lastProcessCheck = DateTime.Now;
                     }
                     return;
                 }
