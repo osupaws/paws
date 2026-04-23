@@ -1,0 +1,118 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Paws.Abstractions.Models.Game;
+using Paws.Abstractions.Services;
+using Paws.Drivers.Lazer;
+using Paws.Drivers.Stable;
+
+namespace Paws.Core.Services;
+
+public class GameDataService : IGameDataService
+{
+    private readonly IConfigService _configService;
+
+    public GameDataService(IConfigService configService)
+    {
+        _configService = configService;
+    }
+
+    private LazerDbService Lazer => new LazerDbService(_configService.Config.LazerPath);
+    private StableDbService Stable => new StableDbService(_configService.Config.StablePath);
+
+    public bool IsLazerDatabaseAvailable => Lazer.IsAvailable;
+                                           
+    public bool IsStableDatabaseAvailable => Stable.IsAvailable;
+
+    public async Task InitializeAsync()
+    {
+        await Task.CompletedTask;
+        Console.WriteLine("[GameDataService] Initializing Game Data...");
+        
+        if (IsLazerDatabaseAvailable)
+            Console.WriteLine($"[GameDataService] Lazer found at: {_configService.Config.LazerPath}");
+            
+        if (IsStableDatabaseAvailable)
+            Console.WriteLine($"[GameDataService] Stable found at: {_configService.Config.StablePath}");
+    }
+
+    public Task<GameBeatmap?> GetBeatmapByHashAsync(string md5Hash)
+    {
+        var allSets = GetAllBeatmapSetsAsync().GetAwaiter().GetResult();
+        var map = allSets.SelectMany(s => s.Beatmaps).FirstOrDefault(b => b.Hash == md5Hash || b.Md5Hash == md5Hash);
+        return Task.FromResult(map);
+    }
+
+    public Task<IEnumerable<GameBeatmapSet>> GetAllBeatmapSetsAsync()
+    {
+        var allSets = new List<GameBeatmapSet>();
+        if (IsLazerDatabaseAvailable) allSets.AddRange(Lazer.GetAllBeatmapSets());
+        if (IsStableDatabaseAvailable) allSets.AddRange(Stable.GetAllBeatmapSets());
+        
+        return Task.FromResult<IEnumerable<GameBeatmapSet>>(allSets);
+    }
+
+    public Task<IEnumerable<GameBeatmap>> SearchBeatmapsAsync(string query)
+    {
+        var allSets = GetAllBeatmapSetsAsync().GetAwaiter().GetResult();
+        var results = allSets.SelectMany(s => s.Beatmaps)
+            .Where(b => 
+                b.Title.Contains(query, StringComparison.OrdinalIgnoreCase) || 
+                b.Artist.Contains(query, StringComparison.OrdinalIgnoreCase));
+            
+        return Task.FromResult(results);
+    }
+
+    public Task<IEnumerable<GameCollection>> GetAllCollectionsAsync()
+    {
+        var list = new List<GameCollection>();
+        if (IsLazerDatabaseAvailable) list.AddRange(Lazer.GetAllCollections());
+        if (IsStableDatabaseAvailable) list.AddRange(Stable.GetAllCollections());
+        return Task.FromResult<IEnumerable<GameCollection>>(list);
+    }
+
+    public Task<IEnumerable<GameScore>> GetScoresByBeatmapHashAsync(string md5Hash)
+    {
+        var list = new List<GameScore>();
+        if (IsLazerDatabaseAvailable) list.AddRange(Lazer.GetScoresByBeatmapHash(md5Hash));
+        if (IsStableDatabaseAvailable) list.AddRange(Stable.GetScoresByBeatmapHash(md5Hash));
+        return Task.FromResult<IEnumerable<GameScore>>(list);
+    }
+
+    public Task<IEnumerable<GameSkin>> GetAllSkinsAsync()
+    {
+        var list = new List<GameSkin>();
+        if (IsLazerDatabaseAvailable) list.AddRange(Lazer.GetAllSkins());
+        // Stable skins (folders inside Skins directory) will be handled separately if needed
+        return Task.FromResult<IEnumerable<GameSkin>>(list);
+    }
+
+    public Task<string?> GetFilePathAsync(string? hash, string? folderName, string? filename)
+    {
+        // 1. Попытка Lazer (поиск по хешу файла)
+        if (!string.IsNullOrEmpty(hash) && IsLazerDatabaseAvailable && hash.Length >= 2)
+        {
+            var lazerBasePath = _configService.Config.LazerPath;
+            var directory1 = hash.Substring(0, 1);
+            var directory2 = hash.Substring(0, 2);
+            var lazerFilePath = Path.Combine(lazerBasePath, "files", directory1, directory2, hash);
+            
+            if (File.Exists(lazerFilePath)) 
+                return Task.FromResult<string?>(lazerFilePath);
+        }
+
+        // 2. Попытка Stable (классический формат Songs/Папка/Файл)
+        if (!string.IsNullOrEmpty(folderName) && !string.IsNullOrEmpty(filename) && IsStableDatabaseAvailable)
+        {
+            var stableBasePath = _configService.Config.StablePath;
+            var stableFilePath = Path.Combine(stableBasePath, "Songs", folderName, filename);
+            
+            if (File.Exists(stableFilePath)) 
+                return Task.FromResult<string?>(stableFilePath);
+        }
+
+        return Task.FromResult<string?>(null);
+    }
+}

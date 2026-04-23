@@ -1,0 +1,77 @@
+/* src-ui/src/assets/main.css - Аналог старого paws-theme-base.css */
+
+/* Определяем порядок слоев для уверенности */
+@layer default, themes;
+
+@layer default {
+  :root {
+    /* Только неизменяемая геометрия окна */
+    --paws-window-width: 640px;
+    --paws-window-height: 800px;
+    --paws-titlebar-height: 48px;
+    --paws-transition-speed: 0.3s;
+  }
+}
+
+/* Сброс стилей и база */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Класс для плавной смены темы */
+.paws-theme-transitioning *,
+.paws-theme-transitioning *::before,
+.paws-theme-transitioning *::after {
+  transition:
+    background-color var(--paws-transition-speed) ease-in-out,
+    background-image var(--paws-transition-speed) ease-in-out,
+    color var(--paws-transition-speed) ease-in-out,
+    border-color var(--paws-transition-speed) ease-in-out,
+    filter var(--paws-transition-speed) ease-in-out,
+    box-shadow var(--paws-transition-speed) ease-in-out !important;
+}
+
+/* Синхронизация View Transitions API с нашей переменной скорости */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--paws-transition-speed);
+  animation-timing-function: ease-in-out;
+}
+
+body {
+  font-family: var(--paws-font-primary);
+  background-color: var(--paws-color-bg-primary);
+  color: var(--paws-color-text-primary);
+  width: var(--paws-window-width);
+  height: var(--paws-window-height);
+  overflow: hidden;
+  user-select: none;
+  font-weight: var(--paws-font-weight-normal);
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+/* Кастомные скроллбары на токенах */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--paws-color-bg-tertiary);
+  border-radius: var(--paws-rounding-normal);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--paws-color-accent-primary);
+}

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Paws.Abstractions\Paws.Abstractions.csproj" />
+    <ProjectReference Include="..\Paws.Core\Paws.Core.csproj" />
+    <ProjectReference Include="..\Paws.Drivers\Paws.Drivers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.3" />
+    <PackageReference Include="Realm" Version="20.1.0" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <Target Name="CopySidecar" AfterTargets="Build">
+    <Message Text="Copying all sidecar files to Tauri binaries and target/debug..." Importance="high" />
+    <Exec Command="if not exist ..\..\src-tauri\binaries mkdir ..\..\src-tauri\binaries" />
+    <!-- Копируем всё содержимое папки билда в binaries (для релиза) -->
+    <Exec Command="xcopy /Y /E /I &quot;$(TargetDir)*&quot; &quot;..\..\src-tauri\binaries&quot;" />
+    <!-- Переименовываем основной экзешник под формат Tauri -->
+    <Exec Command="copy /Y &quot;..\..\src-tauri\binaries\$(TargetName).exe&quot; &quot;..\..\src-tauri\binaries\paws-backend-x86_64-pc-windows-msvc.exe&quot;" />
+    
+    <!-- ВАЖНО: Копируем всё в target/debug, чтобы бэкенд работал во время pnpm dev -->
+    <Exec Command="if exist ..\..\src-tauri\target\debug xcopy /Y /E /I &quot;$(TargetDir)*&quot; &quot;..\..\src-tauri\target\debug&quot;" />
+  </Target>
+
+</Project>

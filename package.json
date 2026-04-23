@@ -1,0 +1,11 @@
+{
+  "name": "paws-root",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm tauri dev",
+    "build": "pnpm tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1"
+  }
+}

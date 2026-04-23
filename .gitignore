@@ -1,0 +1,33 @@
+# Node.js
+node_modules/
+.pnpm-debug.log*
+
+# Build artifacts
+bin/
+obj/
+src-tauri/target/
+src-ui/dist/
+
+tmp/
+test-themes/
+
+# IDEs
+.vscode/
+.idea/
+.agent/
+.agents/
+*.swp
+*.swo
+
+# Databases
+*.realm
+*.realm.lock
+*.realm.management/
+
+# Tauri specific
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
+
+# System files
+.DS_Store
+Thumbs.db
