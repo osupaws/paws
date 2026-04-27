@@ -48,8 +48,15 @@ public class GameDataService : IGameDataService
     public Task<IEnumerable<GameBeatmapSet>> GetAllBeatmapSetsAsync()
     {
         var allSets = new List<GameBeatmapSet>();
-        if (IsLazerDatabaseAvailable) allSets.AddRange(Lazer.GetAllBeatmapSets());
-        if (IsStableDatabaseAvailable) allSets.AddRange(Stable.GetAllBeatmapSets());
+        
+        if (_configService.Config.IsLegacyMode)
+        {
+            if (IsStableDatabaseAvailable) allSets.AddRange(Stable.GetAllBeatmapSets());
+        }
+        else
+        {
+            if (IsLazerDatabaseAvailable) allSets.AddRange(Lazer.GetAllBeatmapSets());
+        }
         
         return Task.FromResult<IEnumerable<GameBeatmapSet>>(allSets);
     }
@@ -68,24 +75,39 @@ public class GameDataService : IGameDataService
     public Task<IEnumerable<GameCollection>> GetAllCollectionsAsync()
     {
         var list = new List<GameCollection>();
-        if (IsLazerDatabaseAvailable) list.AddRange(Lazer.GetAllCollections());
-        if (IsStableDatabaseAvailable) list.AddRange(Stable.GetAllCollections());
+        if (_configService.Config.IsLegacyMode)
+        {
+            if (IsStableDatabaseAvailable) list.AddRange(Stable.GetAllCollections());
+        }
+        else
+        {
+            if (IsLazerDatabaseAvailable) list.AddRange(Lazer.GetAllCollections());
+        }
         return Task.FromResult<IEnumerable<GameCollection>>(list);
     }
 
     public Task<IEnumerable<GameScore>> GetScoresByBeatmapHashAsync(string md5Hash)
     {
         var list = new List<GameScore>();
-        if (IsLazerDatabaseAvailable) list.AddRange(Lazer.GetScoresByBeatmapHash(md5Hash));
-        if (IsStableDatabaseAvailable) list.AddRange(Stable.GetScoresByBeatmapHash(md5Hash));
+        if (_configService.Config.IsLegacyMode)
+        {
+            if (IsStableDatabaseAvailable) list.AddRange(Stable.GetScoresByBeatmapHash(md5Hash));
+        }
+        else
+        {
+            if (IsLazerDatabaseAvailable) list.AddRange(Lazer.GetScoresByBeatmapHash(md5Hash));
+        }
         return Task.FromResult<IEnumerable<GameScore>>(list);
     }
 
     public Task<IEnumerable<GameSkin>> GetAllSkinsAsync()
     {
         var list = new List<GameSkin>();
-        if (IsLazerDatabaseAvailable) list.AddRange(Lazer.GetAllSkins());
-        // Stable skins (folders inside Skins directory) will be handled separately if needed
+        if (!_configService.Config.IsLegacyMode)
+        {
+            if (IsLazerDatabaseAvailable) list.AddRange(Lazer.GetAllSkins());
+        }
+        // TODO: Implement Stable skin discovery if in Legacy mode
         return Task.FromResult<IEnumerable<GameSkin>>(list);
     }
 

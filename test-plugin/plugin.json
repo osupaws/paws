@@ -1,0 +1,16 @@
+{
+  "id": "org.test.hello",
+  "name": "Test Dev Plugin",
+  "version": "1.0.0",
+  "author": "Dev",
+  "description": "Hotplug Test Plugin",
+  "entryPoint": "index.html",
+  "scopes": [
+    "sys:config:read",
+    "sys:themes:read",
+    "game:data:read",
+    "sys:storage:read",
+    "sys:storage:write"
+  ],
+  "isSystem": false
+}

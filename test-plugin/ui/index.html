@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paws Test Plugin</title>
+    <!-- CSS theme link updated by host -->
+    <link id="paws-theme-link" rel="stylesheet" href="http://pawsapp.localhost/themes/paws-dark.css">
+    
+    <style>
+        :root {
+            /* Basic fallback variables just in case */
+            --paws-color-bg-primary: #121212;
+            --paws-color-bg-secondary: #1e1e1e;
+            --paws-color-bg-tertiary: #2a2a2a;
+            --paws-color-text-primary: #ffffff;
+            --paws-color-text-secondary: #a0a0a0;
+            --paws-color-accent-primary: #ff66aa;
+            --paws-rounding-medium: 12px;
+            --paws-font-primary: "Inter", sans-serif;
+        }
+
+        body {
+            background-color: transparent; /* Iframe handles bg */
+            color: var(--paws-color-text-primary);
+            font-family: var(--paws-font-primary);
+            margin: 0;
+            padding: 20px;
+            overflow-y: auto;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .card {
+            background-color: var(--paws-color-bg-secondary);
+            border: 1px solid var(--paws-color-bg-tertiary);
+            border-radius: var(--paws-rounding-medium);
+            padding: 16px;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 18px;
+            color: var(--paws-color-accent-primary);
+            transition: color 0.3s;
+        }
+
+        .row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        input, select {
+            background-color: var(--paws-color-bg-tertiary);
+            color: var(--paws-color-text-primary);
+            border: 1px solid var(--paws-color-bg-tertiary);
+            padding: 8px 12px;
+            border-radius: 8px;
+            outline: none;
+            flex: 1;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        button {
+            background-color: var(--paws-color-accent-primary);
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s, background-color 0.3s;
+        }
+
+        button:hover {
+            opacity: 0.8;
+        }
+
+        .console {
+            background-color: #000;
+            color: #0f0;
+            font-family: monospace;
+            padding: 12px;
+            border-radius: 8px;
+            height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+
+        .console div {
+            margin-bottom: 4px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 4px;
+        }
+        
+        .badge {
+            background-color: var(--paws-color-bg-tertiary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card">
+            <h2>Paws Internal Test Plugin</h2>
+            <div class="row">
+                <span class="badge" id="theme-badge">Theme: paws-dark</span>
+                <span class="badge" id="mode-badge">Mode: Unknown</span>
+            </div>
+            <p style="font-size: 13px; color: var(--paws-color-text-secondary);">
+                This plugin bypasses CORS by running in the pawsplugin:// protocol and communicates directly with the Tauri host via postMessage.
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Backend RPC Tester</h2>
+            <div class="row">
+                <input type="text" id="action-input" placeholder="Action name (e.g. getConfig)" value="getConfig">
+                <button onclick="sendRpc()">Call Sidecar</button>
+            </div>
+            <div class="row">
+                <input type="text" id="params-input" placeholder='Params JSON: {"key": "value"}' value="{}">
+            </div>
+            <div class="row" style="margin-top: 10px; flex-wrap: wrap;">
+                <button onclick="testPredefined('ping')" style="background-color: var(--paws-color-bg-tertiary);">ping</button>
+                <button onclick="testPredefined('getConfig')" style="background-color: var(--paws-color-bg-tertiary);">getConfig</button>
+                <button onclick="testPredefined('getThemes')" style="background-color: var(--paws-color-bg-tertiary);">getThemes</button>
+                <button onclick="testPredefined('getDbMetadata')" style="background-color: var(--paws-color-bg-tertiary);">getDbMetadata</button>
+                <button onclick="testPredefined('getLoadedPlugins')" style="background-color: var(--paws-color-bg-tertiary);">getLoadedPlugins</button>
+                <button onclick="testPredefined('getDiscoveredPlugins')" style="background-color: var(--paws-color-bg-tertiary);">getDiscoveredPlugins</button>
+                <button onclick="testPredefined('getBeatmapSets')" style="background-color: var(--paws-color-bg-tertiary);">getBeatmapSets</button>
+                <button onclick="testSearch()" style="background-color: var(--paws-color-accent-primary);">Search Beatmaps (test)</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>RPC Response Log</h2>
+            <div class="console" id="console-output">
+                <div>[System] Plugin loaded. Waiting for RPC responses...</div>
+            </div>
+            <button onclick="document.getElementById('console-output').innerHTML=''" style="margin-top: 8px; background-color: var(--paws-color-bg-tertiary);">Clear Log</button>
+        </div>
+    </div>
+
+    <script>
+        // --- Simple SDK Implementation ---
+        
+        let messageIdCounter = 0;
+        const pendingRequests = new Map();
+
+        function log(msg) {
+            const out = document.getElementById("console-output");
+            const div = document.createElement("div");
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            out.prepend(div);
+        }
+
+        // Send a request to the parent window (Tauri Host)
+        function callSidecar(action, params = {}) {
+            return new Promise((resolve, reject) => {
+                const id = `rpc_${++messageIdCounter}`;
+                pendingRequests.set(id, { resolve, reject, action });
+                
+                log(`-> Request ${action}`);
+                
+                window.parent.postMessage({
+                    channel: "paws:rpc",
+                    id: id,
+                    payload: { action, params }
+                }, "*");
+            });
+        }
+
+        // Listen for messages from the parent window
+        window.addEventListener("message", (event) => {
+            const data = event.data;
+            if (!data || !data.channel) return;
+
+            // Handle theme and mode synchronization
+            if (data.channel === "notice") {
+                const payload = data.payload;
+                if (payload.type === "theme-changed") {
+                    const themeId = payload.theme === "dark" ? "paws-dark" : "paws-light";
+                    document.getElementById("paws-theme-link").href = `http://pawsapp.localhost/themes/${themeId}.css`;
+                    document.documentElement.setAttribute("data-theme", payload.theme);
+                    document.getElementById("theme-badge").textContent = `Theme: ${themeId}`;
+                    log(`Theme synced from host: ${themeId}`);
+                } else if (payload.type === "mode-changed") {
+                    document.getElementById("mode-badge").textContent = `Mode: ${payload.mode}`;
+                    log(`Mode synced from host: ${payload.mode}`);
+                }
+                return;
+            }
+
+            // Handle RPC Responses
+            if (data.channel === "paws:rpc:response") {
+                const req = pendingRequests.get(data.id);
+                if (req) {
+                    pendingRequests.delete(data.id);
+                    log(`<- Response ${req.action}: ${JSON.stringify(data.payload)}`);
+                    req.resolve(data.payload);
+                }
+            }
+        });
+
+        // --- UI Interaction Logic ---
+
+        async function sendRpc() {
+            const action = document.getElementById("action-input").value;
+            let params = {};
+            try {
+                params = JSON.parse(document.getElementById("params-input").value || "{}");
+            } catch (e) {
+                log(`Error parsing JSON params: ${e.message}`);
+                return;
+            }
+            
+            await callSidecar(action, params);
+        }
+
+        function testPredefined(action) {
+            document.getElementById("action-input").value = action;
+            document.getElementById("params-input").value = "{}";
+            sendRpc();
+        }
+
+        function testSearch() {
+            document.getElementById("action-input").value = "searchBeatmaps";
+            document.getElementById("params-input").value = '{"query": "test"}';
+            sendRpc();
+        }
+
+        // Send the Zero-Flash ready signal to host!
+        // We delay it slightly just to prove the spinner works, but usually it's instant.
+        setTimeout(() => {
+            window.parent.postMessage({ channel: "paws:client-ready" }, "*");
+            log("paws:client-ready sent. Spinner should fade out!");
+        }, 300);
+
+    </script>
+</body>
+</html>

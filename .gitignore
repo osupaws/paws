@@ -10,6 +10,7 @@ src-ui/dist/
 
 tmp/
 test-themes/
+docs/
 
 # IDEs
 .vscode/

@@ -14,13 +14,15 @@ export interface SidecarResponse<T = any> {
 export async function callSidecar<T = any>(
   action: string,
   params: Record<string, any> = {},
+  callerId: string = "host",
 ): Promise<SidecarResponse<T>> {
   try {
-    console.log(`[SidecarBridge] Starting: ${action}`, params);
+    console.log(`[SidecarBridge] Starting: ${action} from ${callerId}`, params);
     // В Tauri v2 мы вызываем нашу Rust-команду 'call_sidecar'
     const result = await invoke<SidecarResponse<T>>("call_sidecar", {
       action,
       params,
+      callerId,
     });
     console.log(`[SidecarBridge] Finished: ${action}`, result);
     return result;

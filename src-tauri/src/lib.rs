@@ -37,6 +37,7 @@ fn get_pawsdata_dir() -> std::path::PathBuf {
 #[serde(rename_all = "camelCase")]
 struct SidecarCommand {
     action: String,
+    caller_id: String,
     params: std::collections::HashMap<String, serde_json::Value>,
 }
 
@@ -81,6 +82,7 @@ async fn call_sidecar(
     handle: tauri::State<'_, SidecarHandle>,
     action: String,
     params: std::collections::HashMap<String, serde_json::Value>,
+    caller_id: String,
 ) -> Result<SidecarResponse, String> {
     let mut child_guard = handle.child.lock().await;
     let mut rx_guard = handle.rx.lock().await;
@@ -88,7 +90,7 @@ async fn call_sidecar(
 
     let child = child_guard.as_mut().ok_or("Sidecar not initialized")?;
 
-    let cmd = SidecarCommand { action: action.clone(), params };
+    let cmd = SidecarCommand { action: action.clone(), caller_id, params };
     let json_cmd = serde_json::to_string(&cmd).map_err(|e| e.to_string())? + "\r\n";
 
     // 1. Send command

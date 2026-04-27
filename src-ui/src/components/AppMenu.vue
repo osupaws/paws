@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import {
   DarkModeIcon,
   LightModeIcon,
   PawsMenuButton,
   PawsMultiSwitch,
   PluginIcon,
-  SettingsIcon
+  SettingsIcon,
 } from "@osupaws/paws-ui";
 import { menuState, closeMenu } from "../state/menu.state";
-import { openSettings } from "../state/modal.state";
+import { openSettings, openPlugins } from "../state/modal.state";
 import { pluginState, setActivePlugin } from "../state/plugin.state";
 import { configState } from "../state/config.state";
 import { themeState, setThemeBase } from "../state/theme.state";
@@ -24,11 +24,24 @@ const selectPlugin = (id: string) => {
   closeMenu();
 };
 
+const localTheme = ref(
+  themeState.activeThemeId.includes("dark") ? "dark" : "light",
+);
+
+// Sync local state when external state changes
+watch(
+  () => themeState.activeThemeId,
+  (newId) => {
+    localTheme.value = newId.includes("dark") ? "dark" : "light";
+  },
+);
+
 const themeModel = computed({
-  get: () => themeState.activeThemeId.includes("dark") ? "dark" : "light",
+  get: () => localTheme.value,
   set: (val: "dark" | "light") => {
-    setThemeBase(val);
-  }
+    localTheme.value = val;
+    setThemeBase(val); // Instant switch, pure CSS animation!
+  },
 });
 
 const handleOpenSettings = () => {
@@ -37,7 +50,7 @@ const handleOpenSettings = () => {
 };
 
 const handleOpenPlugins = () => {
-  // Пока у нас нет PluginsModal, поэтому ничего не делаем или открываем плагины
+  openPlugins();
   closeMenu();
 };
 
@@ -46,13 +59,13 @@ const availablePlugins = computed(() => {
   const list = [...pluginState.loadedPlugins];
   // Временно хардкодим DevPlugin в список, пока бекенд не присылает реальный список плагинов
   if (configState.isDeveloperModeEnabled && configState.devPluginPath) {
-    if (!list.find(p => p.id === "org.test.hello")) {
+    if (!list.find((p) => p.id === "org.test.hello")) {
       list.push({
         id: "org.test.hello",
         name: "Test Dev Plugin",
         version: "1.0.0",
         author: "Dev",
-        description: "Hotplug Test Plugin"
+        description: "Hotplug Test Plugin",
       });
     }
   }
@@ -65,7 +78,11 @@ const availablePlugins = computed(() => {
     <div v-if="menuState.isOpen" class="menu-wrapper" @click.self="closeMenu">
       <div class="menu-panel">
         <div class="menu-section padded-section">
-          <PawsMenuButton label="home" @click="goHome" :active="!pluginState.activePluginId">
+          <PawsMenuButton
+            label="home"
+            @click="goHome"
+            :active="!pluginState.activePluginId"
+          >
             home
           </PawsMenuButton>
         </div>
@@ -148,7 +165,7 @@ const availablePlugins = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   transition: all 0.2s ease;
 }
 
@@ -185,7 +202,9 @@ const availablePlugins = computed(() => {
 
 .menu-enter-active,
 .menu-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.34, 1.35, 0.64, 1);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s cubic-bezier(0.34, 1.35, 0.64, 1);
 }
 
 .menu-enter-from,

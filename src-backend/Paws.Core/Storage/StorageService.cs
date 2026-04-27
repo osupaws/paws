@@ -73,7 +73,7 @@ public class StorageService : IStorageService
 
     public string GetPluginDataDirectory(string pluginId)
     {
-        var basePath = Path.Combine(AppContext.BaseDirectory, "Data", "Plugins", pluginId, "Data");
+        var basePath = Path.Combine(_db.PluginsDirectory, pluginId, "Data");
         if (!Directory.Exists(basePath))
         {
             Directory.CreateDirectory(basePath);

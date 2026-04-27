@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, watch, ref } from "vue";
 import SettingsModal from "./components/SettingsModal.vue";
+import PluginsModal from "./components/PluginsModal.vue";
 import AppMenu from "./components/AppMenu.vue";
 import SplashScreen from "./components/SplashScreen.vue";
+import Content from "./components/Content.vue";
 import {
   toggleMenu,
   useMenuControls,
@@ -19,7 +21,7 @@ import {
   initConfig,
   toggleLegacyMode,
 } from "./state/config.state";
-import { pluginState } from "./state/plugin.state";
+// pluginState is not needed in App.vue anymore
 import { themeState } from "./state/theme.state";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
@@ -266,27 +268,14 @@ const handleReady = async () => {
 
       <main class="main-container">
         <div id="paws-modal-root" class="content-surface">
-          <!-- Отрисовка плагина -->
-          <div v-if="pluginState.activePluginId" style="width: 100%; height: 100%;">
-            <iframe
-              :src="`http://pawsplugin.localhost/${pluginState.activePluginId}/index.html`"
-              style="width: 100%; height: 100%; border: none; background: transparent;"
-            ></iframe>
-          </div>
-
-          <!-- Отрисовка роутера (дашборда) -->
-          <router-view v-else-if="$route" />
-
-          <div v-else class="placeholder">
-            <div class="status-badge">system ready</div>
-            <p class="status-text">waiting for core...</p>
-          </div>
+          <Content />
         </div>
 
         <AppMenu />
 
         <!-- Модалки -->
         <SettingsModal v-if="isMounted" />
+        <PluginsModal v-if="isMounted" />
       </main>
       <PawsTooltip />
     </div>

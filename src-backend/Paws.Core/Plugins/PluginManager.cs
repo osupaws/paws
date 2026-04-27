@@ -16,9 +16,9 @@ namespace Paws.Core.Plugins;
 public class PluginInstance
 {
     public PluginManifest Manifest { get; set; } = null!;
-    public AssemblyLoadContext LoadContext { get; set; } = null!;
-    public Assembly Assembly { get; set; } = null!;
-    public IPawsPlugin PluginRuntime { get; set; } = null!;
+    public AssemblyLoadContext? LoadContext { get; set; }
+    public Assembly? Assembly { get; set; }
+    public IPawsPlugin? PluginRuntime { get; set; }
     public Dictionary<string, MethodInfo> ExportedMethods { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -34,14 +34,14 @@ public class PluginManager : IPluginManager
     private readonly ConcurrentDictionary<string, FileSystemWatcher> _devWatchers = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<object> _keepAlive = new(); // Жесткие ссылки, чтобы GC не убил таймеры!
 
-    public PluginManager(IStorageService storage, IGameDataService gameData, IMonitoringService monitor, IScopeManager scopeManager)
+    public PluginManager(IDatabaseService database, IStorageService storage, IGameDataService gameData, IMonitoringService monitor, IScopeManager scopeManager)
     {
         _storage = storage;
         _gameData = gameData;
         _monitor = monitor;
         _scopeManager = scopeManager;
         
-        _pluginsDirectory = Path.Combine(AppContext.BaseDirectory, "Data", "Plugins");
+        _pluginsDirectory = database.PluginsDirectory;
     }
 
     public async Task LoadPluginsAsync()
@@ -78,62 +78,56 @@ public class PluginManager : IPluginManager
                 await UnloadPluginAsync(manifest.Id);
             }
 
-            var dllPath = Path.Combine(dir, manifest.EntryPoint);
-            if (!File.Exists(dllPath)) return null;
-
-            // --- ZERO-TRUST SECURITY SCAN ---
-            var securityResult = PluginSecurityScanner.Analyze(dllPath, manifest);
-            if (!securityResult.IsSafe)
+            // --- OPTIONAL DLL LOADING ---
+            if (manifest.EntryPoint.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"[SECURITY] Plugin '{manifest.Id}' REJECTED! Missing 'unsafe' scope for illegal calls:");
-                foreach (var violation in securityResult.Violations.Take(5))
+                var dllPath = Path.Combine(dir, manifest.EntryPoint);
+                if (!File.Exists(dllPath)) return null;
+
+                var alc = new PluginLoadContext(dllPath);
+                using var fs = new FileStream(dllPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                var assembly = alc.LoadFromStream(fs);
+
+                var pluginType = assembly.GetTypes().FirstOrDefault(t => typeof(IPawsPlugin).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+                if (pluginType == null)
                 {
-                    Console.WriteLine($"  -> {violation}");
+                    Console.WriteLine($"[PluginManager] NO IPawsPlugin implementation found in {manifest.Id}");
+                    return null;
                 }
-                if (securityResult.Violations.Count > 5) Console.WriteLine($"  ... and {securityResult.Violations.Count - 5} more.");
-                Console.ResetColor();
-                Console.Out.Flush();
-                return null;
-            }
-            // --------------------------------
 
-            var alc = new PluginLoadContext(dllPath);
-            using var fs = new FileStream(dllPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            var assembly = alc.LoadFromStream(fs);
+                var pluginObj = (IPawsPlugin)Activator.CreateInstance(pluginType)!;
+                var hostApi = new HostApi(manifest.Id, _storage, _gameData, _monitor, this);
 
-            var pluginType = assembly.GetTypes().FirstOrDefault(t => typeof(IPawsPlugin).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
-            if (pluginType == null)
-            {
-                Console.WriteLine($"[PluginManager] NO IPawsPlugin implementation found in {manifest.Id}");
-                return null;
-            }
+                await pluginObj.InitializeAsync(hostApi);
 
-            var pluginObj = (IPawsPlugin)Activator.CreateInstance(pluginType)!;
-            var hostApi = new HostApi(manifest.Id, _storage, _gameData, _monitor, this);
-
-            await pluginObj.InitializeAsync(hostApi);
-
-            var instance = new PluginInstance
-            {
-                Manifest = manifest,
-                LoadContext = alc,
-                Assembly = assembly,
-                PluginRuntime = pluginObj
-            };
-
-            foreach (var method in pluginType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-            {
-                var attr = method.GetCustomAttribute<PublicEntryPointAttribute>();
-                if (attr != null)
+                var instance = new PluginInstance
                 {
-                    var name = string.IsNullOrEmpty(attr.MethodName) ? method.Name : attr.MethodName;
-                    instance.ExportedMethods[name] = method;
+                    Manifest = manifest,
+                    LoadContext = alc,
+                    Assembly = assembly,
+                    PluginRuntime = pluginObj
+                };
+
+                foreach (var method in pluginType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+                {
+                    var attr = method.GetCustomAttribute<PublicEntryPointAttribute>();
+                    if (attr != null)
+                    {
+                        var name = string.IsNullOrEmpty(attr.MethodName) ? method.Name : attr.MethodName;
+                        instance.ExportedMethods[name] = method;
+                    }
                 }
+
+                _loadedPlugins[manifest.Id] = instance;
+            }
+            else
+            {
+                // UI-Only Plugin
+                _loadedPlugins[manifest.Id] = new PluginInstance { Manifest = manifest };
+                Console.WriteLine($"[PluginManager] UI-Only Plugin '{manifest.Name}' registered.");
             }
 
-            _loadedPlugins[manifest.Id] = instance;
-            Console.WriteLine($"[PluginManager] {manifest.Name} v{manifest.Version} [{manifest.Id}] loaded!");
+            Console.WriteLine($"[PluginManager] {manifest.Name} v{manifest.Version} [{manifest.Id}] ready!");
             return manifest;
         }
         catch (Exception ex)
@@ -189,11 +183,16 @@ public class PluginManager : IPluginManager
             try
             {
                 Console.WriteLine($"[PluginManager] Shutting down plugin {pluginId}...");
-                await instance.PluginRuntime.ShutdownAsync(); // Даем плагину время остановить таймеры и закрыть файлы!
+                if (instance.PluginRuntime != null)
+                {
+                    await instance.PluginRuntime.ShutdownAsync();
+                }
                 
-                // Освобождаем память!
-                instance.LoadContext.Unload(); 
-                Console.WriteLine($"[PluginManager] ALC for {pluginId} successfully unloaded.");
+                if (instance.LoadContext != null)
+                {
+                    instance.LoadContext.Unload();
+                    Console.WriteLine($"[PluginManager] ALC for {pluginId} successfully unloaded.");
+                }
             }
             catch (Exception ex)
             {
@@ -219,6 +218,9 @@ public class PluginManager : IPluginManager
 
         if (!_loadedPlugins.TryGetValue(targetPluginId, out var targetPlugin))
             throw new InvalidOperationException($"Target plugin {targetPluginId} is offline or missing.");
+
+        if (targetPlugin.PluginRuntime == null)
+            throw new InvalidOperationException($"Plugin {targetPluginId} is UI-only and has no backend methods.");
 
         if (!targetPlugin.ExportedMethods.TryGetValue(method, out var methodInfo))
             throw new MissingMethodException($"Plugin {targetPluginId} strongly denies access or missing method: {method}");

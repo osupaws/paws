@@ -23,9 +23,9 @@
 }
 
 /* Класс для плавной смены темы */
-.paws-theme-transitioning *,
-.paws-theme-transitioning *::before,
-.paws-theme-transitioning *::after {
+.paws-theme-transitioning *:not([data-paws-part="highlighter"]),
+.paws-theme-transitioning *:not([data-paws-part="highlighter"])::before,
+.paws-theme-transitioning *:not([data-paws-part="highlighter"])::after {
   transition:
     background-color var(--paws-transition-speed) ease-in-out,
     background-image var(--paws-transition-speed) ease-in-out,

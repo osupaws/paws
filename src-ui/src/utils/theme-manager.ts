@@ -51,33 +51,13 @@ export async function updateThemeLinks(theme: ThemeInfo): Promise<void> {
     }, 150); // Ждем короткое время, чтобы стили точно пересчитались
   };
 
-  // Chromium View Transitions API
-  if ((document as any).startViewTransition) {
-    const themeLoaded = new Promise<void>((resolve) => {
-      const handler = () => {
-        baseLink.removeEventListener("load", handler);
-        baseLink.removeEventListener("error", handler);
-        resolve();
-      };
-      baseLink.addEventListener("load", handler);
-      baseLink.addEventListener("error", handler);
-      setTimeout(resolve, 800);
-    });
-
-    (document as any).startViewTransition(async () => {
-      performChange();
-      lastThemeId = theme.id;
-      await themeLoaded;
-      cacheSplashColors();
-    });
-  } else {
-    // Fallback CSS Transition
-    document.body.classList.add("paws-theme-transitioning");
-    performChange();
-    lastThemeId = theme.id;
-    setTimeout(() => {
-      document.body.classList.remove("paws-theme-transitioning");
-      cacheSplashColors();
-    }, 350);
-  }
+  // Pure CSS Transition (Magical feel without DOM freezing)
+  document.body.classList.add("paws-theme-transitioning");
+  performChange();
+  lastThemeId = theme.id;
+  
+  setTimeout(() => {
+    document.body.classList.remove("paws-theme-transitioning");
+    cacheSplashColors();
+  }, 350);
 }
