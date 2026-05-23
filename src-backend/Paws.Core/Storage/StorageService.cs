@@ -1,28 +1,39 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Paws.Abstractions.Models;
 using Paws.Abstractions.Services;
-using Paws.Core.Data;
-using Realms;
+using Paws.Core.Plugins;
 
 namespace Paws.Core.Storage;
 
+/// <summary>
+/// Core implementation of IStorageService.
+/// Handles file blobs, plugin sandboxing, and security validation (The Fence).
+/// </summary>
 public class StorageService : IStorageService
 {
     private readonly IDatabaseService _db;
     private readonly IScopeManager _scopeManager;
     private readonly IConfigService _config;
+    private readonly IMonitoringService _monitoring;
 
-    public StorageService(IDatabaseService db, IScopeManager scopeManager, IConfigService config)
+    public StorageService(
+        IDatabaseService db, 
+        IScopeManager scopeManager, 
+        IConfigService config,
+        IMonitoringService monitoring)
     {
         _db = db;
         _scopeManager = scopeManager;
         _config = config;
+        _monitoring = monitoring;
     }
 
-    private Realm _realm => _db.GetRealm();
+    // --- Blobs ---
 
     public async Task<string> SaveBlobAsync(byte[] data, string contentType)
     {
@@ -69,76 +80,166 @@ public class StorageService : IStorageService
         return Convert.ToHexString(hashBytes).ToLowerInvariant();
     }
 
-    // --- Sandbox Implementation ---
+    // --- Sandbox & Temp ---
 
     public string GetPluginDataDirectory(string pluginId)
     {
         var basePath = Path.Combine(_db.PluginsDirectory, pluginId, "Data");
-        if (!Directory.Exists(basePath))
-        {
-            Directory.CreateDirectory(basePath);
-        }
+        if (!Directory.Exists(basePath)) Directory.CreateDirectory(basePath);
         return basePath;
     }
 
-    private string GetValidatedPluginPath(string pluginId, string relativePath)
+    public string GetPluginTempDirectory(string pluginId)
     {
-        var baseDir = GetPluginDataDirectory(pluginId);
-        var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
-
-        if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new UnauthorizedAccessException($"Plugin {pluginId} is not allowed to access path outside its sandbox: {relativePath}");
-        }
-
-        return fullPath;
+        var basePath = Path.Combine(Path.GetTempPath(), "Paws", "Plugins", pluginId);
+        if (!Directory.Exists(basePath)) Directory.CreateDirectory(basePath);
+        return basePath;
     }
 
     public async Task<byte[]> ReadPluginFileAsync(string pluginId, string relativePath)
     {
-        var path = GetValidatedPluginPath(pluginId, relativePath);
-        if (!File.Exists(path)) throw new FileNotFoundException("Plugin file not found", path);
-        return await File.ReadAllBytesAsync(path);
+        var baseDir = GetPluginDataDirectory(pluginId);
+        var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
+        if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("Path outside plugin sandbox");
+        
+        if (!File.Exists(fullPath)) throw new FileNotFoundException("Plugin file not found", fullPath);
+        return await File.ReadAllBytesAsync(fullPath);
     }
 
     public async Task WritePluginFileAsync(string pluginId, string relativePath, byte[] data)
     {
-        var path = GetValidatedPluginPath(pluginId, relativePath);
-        
-        var dir = Path.GetDirectoryName(path);
-        if (dir != null && !Directory.Exists(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
+        var baseDir = GetPluginDataDirectory(pluginId);
+        var fullPath = Path.GetFullPath(Path.Combine(baseDir, relativePath));
+        if (!fullPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException("Path outside plugin sandbox");
 
-        await File.WriteAllBytesAsync(path, data);
+        var dir = Path.GetDirectoryName(fullPath);
+        if (dir != null && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+        await File.WriteAllBytesAsync(fullPath, data);
     }
 
-    public bool ValidatePathAccess(string pluginId, string absolutePath)
+    // --- Atomic Bits (The Hands) ---
+
+    public bool FileExists(string pluginId, string absolutePath)
+    {
+        if (!ValidateAccess(pluginId, absolutePath, false)) return false;
+        return File.Exists(absolutePath);
+    }
+
+    public void DeleteFile(string pluginId, string absolutePath)
+    {
+        if (!ValidateAccess(pluginId, absolutePath, true))
+            throw new UnauthorizedAccessException($"Plugin {pluginId} does not have write access to {absolutePath}");
+        
+        if (File.Exists(absolutePath)) File.Delete(absolutePath);
+    }
+
+    public bool DirectoryExists(string pluginId, string absolutePath)
+    {
+        if (!ValidateAccess(pluginId, absolutePath, false)) return false;
+        return Directory.Exists(absolutePath);
+    }
+
+    public void DeleteDirectory(string pluginId, string absolutePath, bool recursive = false)
+    {
+        if (!ValidateAccess(pluginId, absolutePath, true))
+            throw new UnauthorizedAccessException($"Plugin {pluginId} does not have write access to {absolutePath}");
+
+        if (Directory.Exists(absolutePath)) Directory.Delete(absolutePath, recursive);
+    }
+
+    public IEnumerable<string> ListFiles(string pluginId, string absolutePath, string searchPattern = "*")
+    {
+        if (!ValidateAccess(pluginId, absolutePath, false))
+            throw new UnauthorizedAccessException($"Plugin {pluginId} does not have read access to {absolutePath}");
+
+        if (!Directory.Exists(absolutePath)) return Array.Empty<string>();
+        return Directory.GetFiles(absolutePath, searchPattern).Select(Path.GetFileName)!;
+    }
+
+    public IEnumerable<string> ListDirectories(string pluginId, string absolutePath, string searchPattern = "*")
+    {
+        if (!ValidateAccess(pluginId, absolutePath, false))
+            throw new UnauthorizedAccessException($"Plugin {pluginId} does not have read access to {absolutePath}");
+
+        if (!Directory.Exists(absolutePath)) return Array.Empty<string>();
+        return Directory.GetDirectories(absolutePath, searchPattern).Select(Path.GetFileName)!;
+    }
+
+    // --- The Fence (Validation) ---
+
+    public bool ValidateAccess(string pluginId, string absolutePath, bool isWriteAccess = false)
     {
         var normalizedPath = Path.GetFullPath(absolutePath).TrimEnd('\\', '/');
 
-        // 1. fs:self (своя папка)
-        var baseDir = GetPluginDataDirectory(pluginId).TrimEnd('\\', '/');
-        if (normalizedPath.StartsWith(baseDir, StringComparison.OrdinalIgnoreCase))
+        // 0. Host (Sidecar core) always has access
+        if (pluginId == "host") return true;
+
+        // 1. Always allow access to plugin's own Data and Temp
+        var dataDir = GetPluginDataDirectory(pluginId).TrimEnd('\\', '/');
+        var tempDir = GetPluginTempDirectory(pluginId).TrimEnd('\\', '/');
+        
+        if (normalizedPath.StartsWith(dataDir, StringComparison.OrdinalIgnoreCase) ||
+            normalizedPath.StartsWith(tempDir, StringComparison.OrdinalIgnoreCase))
+        {
             return true;
-
-        // 2. Статические права (из plugin.json)
-        if (_scopeManager.HasScope(pluginId, "fs:stable:read") || _scopeManager.HasScope(pluginId, "fs:stable:write"))
-        {
-            var stablePath = _config.Config.StablePath?.TrimEnd('\\', '/');
-            if (!string.IsNullOrEmpty(stablePath) && normalizedPath.StartsWith(stablePath, StringComparison.OrdinalIgnoreCase))
-                return true;
         }
 
-        if (_scopeManager.HasScope(pluginId, "fs:lazer:read") || _scopeManager.HasScope(pluginId, "fs:lazer:write"))
+        // 2. Check Static Scopes (Stable / Lazer)
+        var isOsuPath = false;
+        var isStable = false;
+        var isLazer = false;
+
+        var stablePath = _config.Config.StablePath?.TrimEnd('\\', '/');
+        var lazerPath = _config.Config.LazerPath?.TrimEnd('\\', '/');
+
+        if (!string.IsNullOrEmpty(stablePath) && normalizedPath.StartsWith(stablePath, StringComparison.OrdinalIgnoreCase))
         {
-            var lazerPath = _config.Config.LazerPath?.TrimEnd('\\', '/');
-            if (!string.IsNullOrEmpty(lazerPath) && normalizedPath.StartsWith(lazerPath, StringComparison.OrdinalIgnoreCase))
-                return true;
+            isOsuPath = true;
+            isStable = true;
+        }
+        else if (!string.IsNullOrEmpty(lazerPath) && normalizedPath.StartsWith(lazerPath, StringComparison.OrdinalIgnoreCase))
+        {
+            isOsuPath = true;
+            isLazer = true;
         }
 
-        // 3. Динамические права (10 ГБ ассетов пользователя)
+        if (isOsuPath)
+        {
+            // Check Scope
+            var requiredScope = isWriteAccess ? "filesystem-osu:write" : "filesystem-osu:read";
+            // Allow if has either granular scope or the legacy "filesystem-osu"
+            if (!_scopeManager.HasScope(pluginId, requiredScope) && !_scopeManager.HasScope(pluginId, "filesystem-osu"))
+                return false;
+
+            // 3. Safety Check: Block Write if Game is Running
+            if (isWriteAccess)
+            {
+                var state = _monitoring.CurrentState;
+                if (state.IsOsuRunning)
+                {
+                    // If target is Stable and Stable is running
+                    if (isStable && state.ActiveClient == GameClientType.Stable)
+                        throw new InvalidOperationException("Cannot write to osu!stable folder while the game is running.");
+                    
+                    // If target is Lazer and Lazer is running
+                    if (isLazer && state.ActiveClient == GameClientType.Lazer)
+                        throw new InvalidOperationException("Cannot write to osu!lazer folder while the game is running.");
+                }
+            }
+
+            return true;
+        }
+
+        // 4. External Access (fs:ext)
+        if (_scopeManager.HasScope(pluginId, isWriteAccess ? "filesystem-ext:write" : "filesystem-ext:read") || 
+            _scopeManager.HasScope(pluginId, "filesystem-ext"))
+        {
+            return true;
+        }
+
+        // 5. Runtime Granted Folders
         var runtimeFolders = _scopeManager.GetRuntimeAllowedFolders(pluginId);
         if (runtimeFolders.Any(f => normalizedPath.StartsWith(f, StringComparison.OrdinalIgnoreCase)))
             return true;

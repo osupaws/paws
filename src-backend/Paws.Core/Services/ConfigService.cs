@@ -6,6 +6,10 @@ using Realms;
 
 namespace Paws.Core.Services;
 
+/// <summary>
+/// Implementation of IConfigService that persists settings in the Realm database.
+/// Provides a strongly-typed view of application configuration.
+/// </summary>
 public class ConfigService : IConfigService
 {
     private readonly IDatabaseService _db;

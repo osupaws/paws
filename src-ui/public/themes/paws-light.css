@@ -1,53 +1,61 @@
 /**
  * paws-light.css - Светлая базовая тема
  */
-@layer themes {
+@layer base {
   :root {
-    /* Fonts */
-    --paws-font-primary: "Wix Madefor Display", "Inter", system-ui, sans-serif;
-    --paws-font-mono: "Azeret Mono", monospace;
+    /* Colors mapped from Material M3 JSON (Light Scheme, #FFA4C1 seed) */
 
-    --paws-font-weight-light: 450;
-    --paws-font-weight-normal: 550;
-    --paws-font-weight-medium: 600;
-    --paws-font-weight-bold: 700;
+    /* Brand / Accents */
+    --paws-color-accent-primary: #ffa4c1; /* primaryContainer - source color */
+    --paws-color-accent-subprimary: #904761; /* primary - solid brand color */
+    --paws-color-accent-secondary: #79545f; /* secondary */
+    --paws-color-accent-primary-hover: #7b364f; /* onPrimaryContainer - darker for hover */
+    --paws-color-accent-subprimary-hover: #5f1f38; /* darker primary variant */
 
-    /* Rounding */
+    /* Inactive States */
+    --paws-color-inactive-primary: #f4dde2; /* surfaceVariant */
+    --paws-color-inactive-sub: #d7c1c6; /* outlineVariant */
+    --paws-color-inactive-secondary: #857277; /* outline */
+    --paws-color-inactive-primary-hover: #eddfe1; /* surfaceContainerHighest */
+    --paws-color-inactive-sub-hover: #f3e5e7; /* surfaceContainerHigh */
+
+    /* Typography */
+    --paws-color-text-primary: #211a1c; /* onSurface */
+    --paws-color-text-secondary: #524347; /* onSurfaceVariant */
+
+    /* Backgrounds & Surfaces (M3 Light Elevation) */
+    --paws-color-bg-primary: #fff8f8; /* surface / background */
+    --paws-color-bg-subprimary: #fff0f2; /* surfaceContainerLow */
+    --paws-color-bg-secondary: #f9eaed; /* surfaceContainer */
+    --paws-color-bg-tertiary: #f3e5e7; /* surfaceContainerHigh */
+    --paws-color-bg-titlebar: #fff8f8; /* surface */
+    --paws-color-bg-translucent: rgba(
+      33,
+      26,
+      28,
+      0.08
+    ); /* onSurface with low opacity */
+
+    /* Interactive Elements */
+    --paws-color-interactive-primary: #f3e5e7; /* surfaceContainerHigh */
+    --paws-color-interactive-secondary: #eddfe1; /* surfaceContainerHighest */
+
+    /* Status Colors */
+    --paws-color-success: #8d4f16; /* Tertiary */
+    --paws-color-warning: #feac6c; /* TertiaryContainer */
+    --paws-color-error: #ba1a1a; /* error */
+
+    /* Inherit non-color variables */
     --paws-rounding-normal: 8px;
     --paws-rounding-normal-inner: 6px;
     --paws-rounding-medium: 12px;
     --paws-rounding-medium-inner: 9px;
     --paws-rounding-big: 16px;
 
-    /* Colors - Light Theme */
-    --paws-color-accent-primary: #ffa4c1;
-    --paws-color-accent-subprimary: #ffe5ed;
-    --paws-color-accent-secondary: #73092a;
-    --paws-color-accent-primary-hover: #e790ac;
-    --paws-color-accent-subprimary-hover: #ecccd6;
-
-    --paws-color-inactive-primary: #cecece;
-    --paws-color-inactive-sub: #e4e4e4;
-    --paws-color-inactive-secondary: #474747;
-    --paws-color-inactive-primary-hover: #c4c4c4;
-    --paws-color-inactive-sub-hover: #dddddd;
-
-    --paws-color-text-primary: #252525;
-    --paws-color-text-secondary: #a1a1a1;
-
-    --paws-color-bg-primary: #fafafa;
-    --paws-color-bg-subprimary: #eaeaea;
-    --paws-color-bg-secondary: #f4f4f4;
-    --paws-color-bg-translucent: rgba(0, 0, 0, 0.02);
-    --paws-color-bg-tertiary: #efefef;
-    --paws-color-bg-titlebar: #eeeeee;
-    --paws-color-border-main: rgba(0, 0, 0, 0.1);
-
-    --paws-color-interactive-primary: #e4e4e4;
-    --paws-color-interactive-secondary: #fafafa;
-
-    --paws-color-success: #6ec071;
-    --paws-color-warning: #fcd45e;
-    --paws-color-error: #f56f66;
+    --paws-font-primary: "Wix Madefor Display", system-ui, sans-serif;
+    --paws-font-weight-light: 450;
+    --paws-font-weight-normal: 550;
+    --paws-font-weight-medium: 600;
+    --paws-font-weight-bold: 700;
   }
 }

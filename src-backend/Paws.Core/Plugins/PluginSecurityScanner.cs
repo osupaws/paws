@@ -7,12 +7,19 @@ using Paws.Abstractions.Models;
 
 namespace Paws.Core.Plugins;
 
+/// <summary>
+/// Result of a security scan on a plugin assembly.
+/// </summary>
 public class PluginSecurityAnalysisResult
 {
     public bool IsSafe { get; set; }
     public List<string> Violations { get; set; } = new();
 }
 
+/// <summary>
+/// Static analyzer that performs metadata-level inspection of plugin DLLs.
+/// Blocks usage of forbidden namespaces (System.IO, Reflection, etc.) unless 'unsafe' scope is granted.
+/// </summary>
 public static class PluginSecurityScanner
 {
     private static readonly HashSet<string> ForbiddenNamespaces = new()
@@ -25,7 +32,7 @@ public static class PluginSecurityScanner
 
     private static readonly HashSet<string> AllowedTypes = new()
     {
-        // Разрешаем безопасные типы из System.IO
+        // Allow safe types from System.IO
         "System.IO.Path",
         "System.IO.Stream",
         "System.IO.MemoryStream",
@@ -37,7 +44,7 @@ public static class PluginSecurityScanner
         "System.IO.FileAccess",
         "System.IO.SearchOption",
 
-        // Разрешаем базовую метадату из Reflection
+        // Allow basic metadata from Reflection
         "System.Reflection.AssemblyTitleAttribute",
         "System.Reflection.AssemblyProductAttribute",
         "System.Reflection.AssemblyCopyrightAttribute",
@@ -49,7 +56,7 @@ public static class PluginSecurityScanner
         "System.Reflection.AssemblyDescriptionAttribute",
         "System.Reflection.AssemblyCompanyAttribute",
 
-        // Realm Support (Injected by Realm weaver)
+        // Realm Support (Injected by Realm weaver/Fody)
         "System.Reflection.IReflectableType",
         "System.Reflection.ObfuscationAttribute",
         "System.Reflection.TypeInfo"
@@ -59,7 +66,7 @@ public static class PluginSecurityScanner
     {
         var result = new PluginSecurityAnalysisResult { IsSafe = true };
 
-        // Если у плагина есть scope "unsafe", мы пропускаем проверку безопасности
+        // If the plugin has the "unsafe" scope, skip the security scan
         if (manifest.Scopes.Contains("unsafe"))
         {
             return result;
@@ -84,7 +91,7 @@ public static class PluginSecurityScanner
 
         var metadata = peReader.GetMetadataReader();
 
-        // Проверяем Type References
+        // Validate Type References
         foreach (var typeRefHandle in metadata.TypeReferences)
         {
             var typeRef = metadata.GetTypeReference(typeRefHandle);
@@ -99,7 +106,7 @@ public static class PluginSecurityScanner
             }
         }
 
-        // Проверяем Member References (Вызовы методов/обращения к полям)
+        // Validate Member References (Method calls / field access)
         foreach (var memberRefHandle in metadata.MemberReferences)
         {
             var memberRef = metadata.GetMemberReference(memberRefHandle);

@@ -2,6 +2,9 @@ using Realms;
 
 namespace Paws.Core.Data;
 
+/// <summary>
+/// Persistent database model for file blobs (assets).
+/// </summary>
 public partial class BlobObject : IRealmObject
 {
     [PrimaryKey]

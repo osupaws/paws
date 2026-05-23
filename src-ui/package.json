@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@osupaws/paws-ui": "^0.4.4",
+    "@osupaws/paws-ui": "^0.4.7",
     "@tauri-apps/api": "^2.1.0",
     "@tauri-apps/plugin-autostart": "^2.5.1",
     "@tauri-apps/plugin-dialog": "^2.1.0",

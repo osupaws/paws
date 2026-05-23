@@ -5,6 +5,9 @@ using Paws.Abstractions.Models.Game;
 
 namespace Paws.Drivers.Lazer.Mappers;
 
+/// <summary>
+/// Maps Lazer Realm score objects to the abstract GameScore model.
+/// </summary>
 public static class ScoreMapper
 {
     public static GameScore Map(dynamic lazerScore)

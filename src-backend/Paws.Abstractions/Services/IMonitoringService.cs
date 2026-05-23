@@ -3,11 +3,14 @@ using Paws.Abstractions.Models;
 
 namespace Paws.Abstractions.Services;
 
+/// <summary>
+/// Service for monitoring the game process and active client state.
+/// </summary>
 public interface IMonitoringService
 {
     HostState CurrentState { get; }
     
-    // Событие, срабатывающее только при реальном изменении состояния
+    // Triggered when the host state changes (e.g. game started/stopped)
     event EventHandler<HostState> StateChanged;
     
     void StartMonitoring();

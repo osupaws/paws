@@ -16,18 +16,21 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Single File Configuration -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
-  <Target Name="CopySidecar" AfterTargets="Build">
-    <Message Text="Copying all sidecar files to Tauri binaries and target/debug..." Importance="high" />
+  <Target Name="CopySidecar" AfterTargets="Publish">
+    <Message Text="Copying published single-file sidecar to Tauri binaries..." Importance="high" />
     <Exec Command="if not exist ..\..\src-tauri\binaries mkdir ..\..\src-tauri\binaries" />
-    <!-- Копируем всё содержимое папки билда в binaries (для релиза) -->
-    <Exec Command="xcopy /Y /E /I &quot;$(TargetDir)*&quot; &quot;..\..\src-tauri\binaries&quot;" />
+    <!-- Копируем ТОЛЬКО из папки publish (где лежит один экзешник и пара нативных либ) -->
+    <Exec Command="xcopy /Y /E /I /EXCLUDE:exclude_db.txt &quot;$(TargetDir)publish\*&quot; &quot;..\..\src-tauri\binaries&quot;" />
     <!-- Переименовываем основной экзешник под формат Tauri -->
     <Exec Command="copy /Y &quot;..\..\src-tauri\binaries\$(TargetName).exe&quot; &quot;..\..\src-tauri\binaries\paws-backend-x86_64-pc-windows-msvc.exe&quot;" />
-    
-    <!-- ВАЖНО: Копируем всё в target/debug, чтобы бэкенд работал во время pnpm dev -->
-    <Exec Command="if exist ..\..\src-tauri\target\debug xcopy /Y /E /I &quot;$(TargetDir)*&quot; &quot;..\..\src-tauri\target\debug&quot;" />
   </Target>
 
 </Project>

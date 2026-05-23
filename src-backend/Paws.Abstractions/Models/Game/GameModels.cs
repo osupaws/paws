@@ -11,22 +11,25 @@ public enum GameMode
     Mania = 3
 }
 
+/// <summary>
+/// Domain model for a single beatmap (difficulty).
+/// </summary>
 public class GameBeatmap
 {
-    // Идентификация
+    // Identification
     public string Hash { get; set; } = string.Empty;
     public long OnlineId { get; set; }
     public string DifficultyName { get; set; } = string.Empty;
     public string Md5Hash { get; set; } = string.Empty;
 
-    // Метаданные
+    // Metadata
     public string Artist { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Creator { get; set; } = string.Empty;
     public string Source { get; set; } = string.Empty;
     public string Tags { get; set; } = string.Empty;
 
-    // Сложность (полное покрытие)
+    // Difficulty details
     public float StarRating { get; set; }
     public float ApproachRate { get; set; }
     public float CircleSize { get; set; }
@@ -34,7 +37,7 @@ public class GameBeatmap
     public float DrainRate { get; set; }
     public double Bpm { get; set; }
 
-    // Статистика объектов
+    // Object counts
     public int CircleCount { get; set; }
     public int SliderCount { get; set; }
     public int SpinnerCount { get; set; }
@@ -42,7 +45,7 @@ public class GameBeatmap
     public GameMode Mode { get; set; }
     public long BeatmapSetId { get; set; }
 
-    // Файлы
+    // File references
     public string AudioFile { get; set; } = string.Empty;
     public string BackgroundFile { get; set; } = string.Empty;
     public string FolderName { get; set; } = string.Empty;
@@ -51,6 +54,9 @@ public class GameBeatmap
     public DateTimeOffset? LastPlayed { get; set; }
 }
 
+/// <summary>
+/// Domain model for a beatmap set (collection of difficulties).
+/// </summary>
 public class GameBeatmapSet
 {
     public long OnlineId { get; set; }
@@ -59,8 +65,12 @@ public class GameBeatmapSet
     public string Title { get; set; } = string.Empty;
     public string Creator { get; set; } = string.Empty;
     public List<GameBeatmap> Beatmaps { get; set; } = new();
+    public List<GameFileUsage> Files { get; set; } = new();
 }
 
+/// <summary>
+/// Domain model for a game score (play result).
+/// </summary>
 public class GameScore
 {
     public Guid Id { get; set; }
@@ -73,13 +83,16 @@ public class GameScore
     public DateTimeOffset Date { get; set; }
     public double? PP { get; set; }
 
-    // Статистика (300, 100, 50, Miss)
+    // Result statistics (300, 100, etc.)
     public Dictionary<string, int> Statistics { get; set; } = new();
     public List<string> Mods { get; set; } = new();
 
     public string BeatmapHash { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// Domain model for a game skin.
+/// </summary>
 public class GameSkin
 {
     public Guid Id { get; set; }
@@ -89,12 +102,18 @@ public class GameSkin
     public List<GameFileUsage> Files { get; set; } = new();
 }
 
+/// <summary>
+/// Links a virtual filename to a physical content hash.
+/// </summary>
 public class GameFileUsage
 {
     public string Filename { get; set; } = string.Empty;
-    public string Hash { get; set; } = string.Empty; // SHA-2 хеш для поиска в files/
+    public string Hash { get; set; } = string.Empty; // SHA-2 hash for VFS lookup
 }
 
+/// <summary>
+/// Domain model for a user-created beatmap collection.
+/// </summary>
 public class GameCollection
 {
     public Guid Id { get; set; }

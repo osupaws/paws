@@ -1,0 +1,6 @@
+{"action": "sys:db:metadata", "callerId": "host", "params": {}}
+{"action": "sys:config:get", "callerId": "host", "params": {}}
+{"action": "sys:themes:list", "callerId": "host", "params": {}}
+{"action": "game:active:getBeatmapSets", "callerId": "host", "params": {}}
+{"action": "game:active:getCollections", "callerId": "host", "params": {}}
+{"action": "storage:vfs:resolve", "callerId": "host", "params": {"path": "game://active/Songs"}}

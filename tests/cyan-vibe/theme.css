@@ -1,0 +1,29 @@
+:root {
+  /* Основные акценты Paws теперь будут бирюзовыми */
+  --paws-color-accent-primary: #00e5ff;
+  --paws-color-accent-secondary: #002222;
+  --paws-color-accent-tertiary: #00ffff;
+
+  /* Настраиваем текст под акценты */
+  --paws-color-text-accent: #00e5ff;
+  
+  /* Эффект свечения для элементов с акцентом */
+  --paws-glow-cyan: 0 0 10px rgba(0, 229, 255, 0.4);
+}
+
+/* Пример кастомных стилей для UI */
+.nav-button.active {
+  box-shadow: var(--paws-glow-cyan);
+  border-bottom: 2px solid var(--paws-color-accent-primary);
+}
+
+.logo {
+  color: var(--paws-color-accent-primary);
+  text-shadow: var(--paws-glow-cyan);
+}
+
+.status-badge {
+  border-color: var(--paws-color-accent-primary);
+  color: var(--paws-color-accent-primary);
+  box-shadow: inset 0 0 5px rgba(0, 229, 255, 0.2);
+}

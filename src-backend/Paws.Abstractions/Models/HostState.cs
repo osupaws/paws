@@ -7,13 +7,16 @@ public enum GameClientType
     Lazer
 }
 
+/// <summary>
+/// Represents the current runtime state of the game client.
+/// </summary>
 public class HostState
 {
     public bool IsOsuRunning { get; set; }
     public GameClientType ActiveClient { get; set; }
     public int ProcessId { get; set; }
     
-    // В будущем сюда можно добавить статусы фоновых задач
+    // TODO: Add background task status here in the future
     
     public bool HasChanged(HostState other)
     {

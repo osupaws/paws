@@ -4,6 +4,9 @@ using System.Text;
 
 namespace Paws.Core.Utils;
 
+/// <summary>
+/// Utility for computing cryptographic hashes.
+/// </summary>
 public static class HashHelper
 {
     public static string ComputeSha256(string content)

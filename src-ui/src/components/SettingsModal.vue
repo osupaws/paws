@@ -142,6 +142,10 @@ const handleForceReloadDevPlugin = async () => {
   }
 };
 
+const handleManualSave = async () => {
+  await saveConfig();
+};
+
 // Versions (mocked for now as we don't have update logic yet)
 const appVersion = ref("0.1.0-tauri");
 const schemaVersion = ref("20240412"); // matches current paws-next goal
@@ -181,6 +185,8 @@ const schemaVersion = ref("20240412"); // matches current paws-next goal
             placeholder="select osu!lazer directory"
             :is-icon-clickable="true"
             @icon-click="selectPath('lazer')"
+            @focusout="handleManualSave"
+            @keydown.enter="handleManualSave"
           >
             <template #icon>
               <FolderIcon />
@@ -196,6 +202,8 @@ const schemaVersion = ref("20240412"); // matches current paws-next goal
             placeholder="select osu!stable directory"
             :is-icon-clickable="true"
             @icon-click="selectPath('stable')"
+            @focusout="handleManualSave"
+            @keydown.enter="handleManualSave"
           >
             <template #icon>
               <FolderIcon />
@@ -301,6 +309,8 @@ const schemaVersion = ref("20240412"); // matches current paws-next goal
             placeholder="select hotplug directory"
             :is-icon-clickable="true"
             @icon-click="selectPath('devPlugin')"
+            @focusout="handleManualSave"
+            @keydown.enter="handleManualSave"
             class="flex-1"
           >
             <template #icon>

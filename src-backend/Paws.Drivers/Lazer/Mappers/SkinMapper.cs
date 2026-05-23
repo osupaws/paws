@@ -5,6 +5,9 @@ using Paws.Abstractions.Models.Game;
 
 namespace Paws.Drivers.Lazer.Mappers;
 
+/// <summary>
+/// Maps Lazer Realm skin objects to the abstract GameSkin model.
+/// </summary>
 public static class SkinMapper
 {
     public static GameSkin Map(dynamic lazerSkin)

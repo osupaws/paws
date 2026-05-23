@@ -3,6 +3,9 @@ using System.Text.Json.Serialization;
 
 namespace Paws.Abstractions.Models;
 
+/// <summary>
+/// Detailed manifest for a Paws plugin.
+/// </summary>
 public class PluginManifest
 {
     [JsonPropertyName("id")]

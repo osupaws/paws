@@ -2,6 +2,9 @@ using Paws.Abstractions.Models.Game;
 
 namespace Paws.Drivers.Lazer.Mappers;
 
+/// <summary>
+/// Helper for mapping Lazer ruleset IDs to human-readable mode names.
+/// </summary>
 public static class RulesetMapper
 {
     public static GameMode MapMode(int onlineId)

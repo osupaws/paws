@@ -4,6 +4,9 @@ using Paws.Abstractions.Models.Game;
 
 namespace Paws.Drivers.Lazer.Mappers;
 
+/// <summary>
+/// Maps Lazer Realm file usage objects to the abstract GameFileUsage model.
+/// </summary>
 public static class FileMapper
 {
     public static GameFileUsage Map(dynamic lazerFileUsage)

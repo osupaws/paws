@@ -58,9 +58,9 @@ import { openSettings } from "../state/modal.state";
 
     <!-- Заглушка для будущих фишек -->
     <div class="empty-state">
-      <div class="placeholder-art">paws core</div>
+      <div class="placeholder-art">uglycore</div>
       <p class="placeholder-hint">
-        Choose an operation from the menu to start cleaning
+        delet dis sh (or at least style it properly)
       </p>
     </div>
   </div>
@@ -135,7 +135,7 @@ import { openSettings } from "../state/modal.state";
   gap: 12px;
   position: relative;
   overflow: hidden;
-  transition: all 0.2s;
+  transition: all 0.3s;
 }
 
 .info-card.clickable {

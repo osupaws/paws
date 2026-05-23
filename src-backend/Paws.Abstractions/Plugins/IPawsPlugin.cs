@@ -2,11 +2,14 @@ using System.Threading.Tasks;
 
 namespace Paws.Abstractions.Plugins;
 
+/// <summary>
+/// Core interface for Paws plugins.
+/// </summary>
 public interface IPawsPlugin
 {
-    // Инициализация плагина (вызывается ядром при загрузке сборки)
+    // Plugin initialization (called by Kernel on assembly load)
     Task InitializeAsync(IHostApi api);
     
-    // Мягкая остановка (при выключении плагина или ядра)
+    // Soft shutdown (called when plugin or kernel is stopping)
     Task ShutdownAsync();
 }

@@ -2,6 +2,9 @@ using Realms;
 
 namespace Paws.Core.Data;
 
+/// <summary>
+/// Alternative persistent database model for UI themes.
+/// </summary>
 public partial class ThemeObject : IRealmObject
 {
     [PrimaryKey]

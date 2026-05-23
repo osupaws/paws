@@ -4,23 +4,26 @@ using Paws.Abstractions.Models;
 
 namespace Paws.Abstractions.Services;
 
+/// <summary>
+/// Service for loading, managing, and facilitating communication between plugins.
+/// </summary>
 public interface IPluginManager
 {
-    // Запускает сканирование папки Data/Plugins/ и загружает манифесты и DLL-модули
+    // Scans the Plugins directory and loads manifests and assemblies
     Task LoadPluginsAsync();
     
-    // Возвращает список всех найденных плагинов 
+    // Returns a list of all currently loaded plugins
     IEnumerable<PluginManifest> GetLoadedPlugins();
     
-    // Возвращает манифест по ID плагина (проверка версий и т.д.)
+    // Returns the manifest for a specific plugin ID
     PluginManifest? GetManifest(string pluginId);
 
-    // Cross-Plugin API: Вызывает метод [PublicEntryPoint] из загруженного плагина по имени
+    // Cross-Plugin API: Invokes a [PublicEntryPoint] method on a loaded plugin
     Task<object?> InvokePluginMethodAsync(string sourcePluginId, string targetPluginId, string method, Dictionary<string, object>? args);
 
-    // Загрузка плагина-кандидата из произвольной папки (Developer Hotplug)
+    // Loads a plugin candidate from an arbitrary path (Developer mode)
     Task LoadDevPluginAsync(string absolutePathToFolder);
 
-    // Горячая выгрузка плагина из памяти ОС (для перезагрузки или отключения)
+    // Hot-unloads a plugin from memory
     Task UnloadPluginAsync(string pluginId);
 }

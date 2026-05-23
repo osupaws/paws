@@ -5,6 +5,10 @@ using System.IO;
 
 namespace Paws.Core.Services;
 
+/// <summary>
+/// Service responsible for initializing and providing access to the local Paws Realm database.
+/// Automatically determines the root data path based on portability and write permissions.
+/// </summary>
 public class DatabaseService : IDatabaseService
 {
     public string DatabasePath { get; private set; }
@@ -16,22 +20,22 @@ public class DatabaseService : IDatabaseService
 
     public DatabaseService()
     {
-        // 1. Определяем корневой путь PawsData
+        // 1. Resolve the PawsData root path
         var rootDataPath = ResolveRootDataPath();
 
-        // 2. Инициализируем пути внутри PawsData
+        // 2. Initialize internal paths
         DatabasePath = Path.Combine(rootDataPath, "paws.realm");
         DataDirectory = Path.Combine(rootDataPath, "data");
         PluginsDirectory = Path.Combine(rootDataPath, "plugins");
         TempDirectory = Path.Combine(rootDataPath, "temp");
 
-        // 3. Создаем структуру
+        // 3. Create folder structure
         EnsureStructureExists();
 
         _config = new RealmConfiguration(DatabasePath)
         {
             SchemaVersion = 2,
-            // Здесь можно добавить миграции в будущем
+            // Future migrations go here
         };
     }
 
@@ -42,31 +46,39 @@ public class DatabaseService : IDatabaseService
 
     private string ResolveRootDataPath()
     {
+        // 0. Use Current Working Directory if PawsData exists there
+        var cwd = Environment.CurrentDirectory;
+        string cwdDataPath = Path.Combine(cwd, "PawsData");
+        if (Directory.Exists(cwdDataPath))
+        {
+            return cwdDataPath;
+        }
+
         var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
         var baseDir = Path.GetDirectoryName(exePath) ?? AppDomain.CurrentDomain.BaseDirectory;
 
         string portableDataPath = Path.Combine(baseDir, "PawsData");
 
-        // 1. Если папка PawsData уже существует рядом с EXE - используем её
+        // 1. Use PawsData if it exists next to the EXE (Portable mode)
         if (Directory.Exists(portableDataPath))
         {
             return portableDataPath;
         }
 
-        // 2. Если папки нет, проверяем, можем ли мы её создать (права на запись в baseDir)
+        // 2. Check for write permissions in the EXE directory
         try
         {
-            // Пытаемся создать тестовую папку и тут же удалить её
+            // Attempt to create a test directory
             string testDirPath = Path.Combine(baseDir, ".paws_write_test");
             Directory.CreateDirectory(testDirPath);
             Directory.Delete(testDirPath);
 
-            // Если получилось - создаем и возвращаем путь к PawsData в текущей папке
+            // Success: use portable PawsData in the current folder
             return portableDataPath;
         }
         catch
         {
-            // 3. Если прав нет (например, Program Files) - уходим в AppData/Local
+            // 3. No write permissions: use AppData/Local (System installation)
             var appDataLocal = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             return Path.Combine(appDataLocal, "PawsData");
         }
@@ -89,7 +101,7 @@ public class DatabaseService : IDatabaseService
             }
         }
 
-        // Очистка временных файлов сессии
+        // Clean up temporary session files
         try
         {
             if (Directory.Exists(TempDirectory))
@@ -100,6 +112,6 @@ public class DatabaseService : IDatabaseService
                 }
             }
         }
-        catch { /* Ошибки очистки темпа не критичны для запуска */ }
+        catch { /* Temp cleanup errors are non-critical */ }
     }
 }

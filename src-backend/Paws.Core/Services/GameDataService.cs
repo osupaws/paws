@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Paws.Abstractions.Models;
 using Paws.Abstractions.Models.Game;
 using Paws.Abstractions.Services;
 using Paws.Drivers.Lazer;
@@ -10,6 +11,10 @@ using Paws.Drivers.Stable;
 
 namespace Paws.Core.Services;
 
+/// <summary>
+/// Gateway service that directs database requests to either Lazer or Stable drivers.
+/// Handles asset path resolution and atomic mutations on game records.
+/// </summary>
 public class GameDataService : IGameDataService
 {
     private readonly IConfigService _configService;
@@ -26,6 +31,8 @@ public class GameDataService : IGameDataService
                                            
     public bool IsStableDatabaseAvailable => Stable.IsAvailable;
 
+    public GameClientType GetActiveClient() => _configService.Config.IsLegacyMode ? GameClientType.Stable : GameClientType.Lazer;
+
     public async Task InitializeAsync()
     {
         await Task.CompletedTask;
@@ -38,11 +45,16 @@ public class GameDataService : IGameDataService
             Console.WriteLine($"[GameDataService] Stable found at: {_configService.Config.StablePath}");
     }
 
-    public Task<GameBeatmap?> GetBeatmapByHashAsync(string md5Hash)
+    public async Task<GameBeatmap?> GetBeatmapByHashAsync(string md5Hash)
     {
-        var allSets = GetAllBeatmapSetsAsync().GetAwaiter().GetResult();
-        var map = allSets.SelectMany(s => s.Beatmaps).FirstOrDefault(b => b.Hash == md5Hash || b.Md5Hash == md5Hash);
-        return Task.FromResult(map);
+        if (_configService.Config.IsLegacyMode)
+        {
+            return await Task.Run(() => IsStableDatabaseAvailable ? Stable.GetBeatmapByHash(md5Hash) : null);
+        }
+        else
+        {
+            return await Task.Run(() => IsLazerDatabaseAvailable ? Lazer.GetBeatmapByHash(md5Hash) : null);
+        }
     }
 
     public Task<IEnumerable<GameBeatmapSet>> GetAllBeatmapSetsAsync()
@@ -113,7 +125,7 @@ public class GameDataService : IGameDataService
 
     public Task<string?> GetFilePathAsync(string? hash, string? folderName, string? filename)
     {
-        // 1. Попытка Lazer (поиск по хешу файла)
+        // 1. Try Lazer (Content-addressable file store)
         if (!string.IsNullOrEmpty(hash) && IsLazerDatabaseAvailable && hash.Length >= 2)
         {
             var lazerBasePath = _configService.Config.LazerPath;
@@ -125,7 +137,7 @@ public class GameDataService : IGameDataService
                 return Task.FromResult<string?>(lazerFilePath);
         }
 
-        // 2. Попытка Stable (классический формат Songs/Папка/Файл)
+        // 2. Try Stable (Classic Songs/Folder/File structure)
         if (!string.IsNullOrEmpty(folderName) && !string.IsNullOrEmpty(filename) && IsStableDatabaseAvailable)
         {
             var stableBasePath = _configService.Config.StablePath;
@@ -136,5 +148,36 @@ public class GameDataService : IGameDataService
         }
 
         return Task.FromResult<string?>(null);
+    }
+
+    // --- Атомарные мутаторы (The Hands) ---
+
+    public async Task<bool> DeleteRecordAsync(string pluginId, GameClientType client, string type, string id)
+    {
+        // In Paws v3 this was part of IStorageService.ValidateAccess, but we moved it here in Paws-Next.
+        Console.WriteLine($"[GameDataService] Plugin {pluginId} requested DELETE on {client}:{type} ID={id}");
+
+        if (client == GameClientType.Lazer)
+        {
+            return await Task.FromResult(Lazer.DeleteRecord(type, id)); 
+        }
+        else if (client == GameClientType.Stable)
+        {
+            return await Task.FromResult(Stable.DeleteRecord(type, id));
+        }
+
+        return false;
+    }
+
+    public async Task<bool> UpdateRecordAsync(string pluginId, GameClientType client, string type, string id, object data)
+    {
+        Console.WriteLine($"[GameDataService] Plugin {pluginId} requested UPDATE on {client}:{type} ID={id}");
+        
+        if (client == GameClientType.Lazer)
+        {
+            return await Task.FromResult(Lazer.UpdateRecord(type, id, data));
+        }
+
+        return await Task.FromResult(false);
     }
 }

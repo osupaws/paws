@@ -13,6 +13,9 @@ using Paws.Abstractions.Services;
 
 namespace Paws.Core.Plugins;
 
+/// <summary>
+/// Internal container for a loaded plugin instance and its runtime metadata.
+/// </summary>
 public class PluginInstance
 {
     public PluginManifest Manifest { get; set; } = null!;
@@ -22,6 +25,10 @@ public class PluginInstance
     public Dictionary<string, MethodInfo> ExportedMethods { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
+/// <summary>
+/// Core implementation of IPluginManager. 
+/// Handles assembly loading, hot-reload, and Cross-Plugin RPC.
+/// </summary>
 public class PluginManager : IPluginManager
 {
     private readonly string _pluginsDirectory;
@@ -29,17 +36,19 @@ public class PluginManager : IPluginManager
     private readonly IGameDataService _gameData;
     private readonly IMonitoringService _monitor;
     private readonly IScopeManager _scopeManager;
+    private readonly IVfsService _vfs;
 
     private readonly ConcurrentDictionary<string, PluginInstance> _loadedPlugins = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, FileSystemWatcher> _devWatchers = new(StringComparer.OrdinalIgnoreCase);
-    private readonly List<object> _keepAlive = new(); // Жесткие ссылки, чтобы GC не убил таймеры!
+    private readonly List<object> _keepAlive = new(); // Strong references to prevent GC from collecting timers!
 
-    public PluginManager(IDatabaseService database, IStorageService storage, IGameDataService gameData, IMonitoringService monitor, IScopeManager scopeManager)
+    public PluginManager(IDatabaseService database, IStorageService storage, IGameDataService gameData, IMonitoringService monitor, IScopeManager scopeManager, IVfsService vfs)
     {
         _storage = storage;
         _gameData = gameData;
         _monitor = monitor;
         _scopeManager = scopeManager;
+        _vfs = vfs;
         
         _pluginsDirectory = database.PluginsDirectory;
     }
@@ -72,7 +81,7 @@ public class PluginManager : IPluginManager
             if (manifest == null || string.IsNullOrEmpty(manifest.Id) || string.IsNullOrEmpty(manifest.EntryPoint))
                 return null;
 
-            // Если плагин уже загружен (например, при Reload)
+            // If plugin is already loaded (e.g. during Reload), unload it first
             if (_loadedPlugins.ContainsKey(manifest.Id))
             {
                 await UnloadPluginAsync(manifest.Id);
@@ -83,6 +92,15 @@ public class PluginManager : IPluginManager
             {
                 var dllPath = Path.Combine(dir, manifest.EntryPoint);
                 if (!File.Exists(dllPath)) return null;
+
+                // --- SECURITY SCAN ---
+                var scannerResult = PluginSecurityScanner.Analyze(dllPath, manifest);
+                if (!scannerResult.IsSafe)
+                {
+                    var reason = string.Join("; ", scannerResult.Violations);
+                    Console.WriteLine($"[Security] Plugin {manifest.Id} is REJECTED: {reason}");
+                    return null;
+                }
 
                 var alc = new PluginLoadContext(dllPath);
                 using var fs = new FileStream(dllPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -96,7 +114,7 @@ public class PluginManager : IPluginManager
                 }
 
                 var pluginObj = (IPawsPlugin)Activator.CreateInstance(pluginType)!;
-                var hostApi = new HostApi(manifest.Id, _storage, _gameData, _monitor, this);
+                var hostApi = new HostApi(manifest.Id, _storage, _gameData, _monitor, _vfs, this);
 
                 await pluginObj.InitializeAsync(hostApi);
 
@@ -127,6 +145,9 @@ public class PluginManager : IPluginManager
                 Console.WriteLine($"[PluginManager] UI-Only Plugin '{manifest.Name}' registered.");
             }
 
+            // --- REGISTER SCOPES ---
+            _scopeManager.RegisterPluginScopes(manifest.Id, manifest.Scopes);
+
             Console.WriteLine($"[PluginManager] {manifest.Name} v{manifest.Version} [{manifest.Id}] ready!");
             return manifest;
         }
@@ -153,17 +174,17 @@ public class PluginManager : IPluginManager
         {
             if (e.Name == null || !e.Name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) return;
 
-            // Debounce 500ms для защиты от рваной компиляции Visual Studio/dotnet build
+            // Debounce 500ms to protect against fragmented compilation (e.g. during dotnet build)
             debounceTimer?.Dispose();
             debounceTimer = new System.Threading.Timer(async _ =>
             {
                 Console.WriteLine($"[Hotplug] Code change detected via {e.ChangeType}! Reloading: {manifest.Id}");
                 await CoreLoadPluginAsync(absolutePathToFolder);
-                Console.Out.Flush(); // Проталкиваем строку в трубу Tauri
+                Console.Out.Flush(); // Flush to stdout for Tauri/IPC pipe
             }, null, 500, System.Threading.Timeout.Infinite);
         };
 
-        // Подписываемся на ВСЕ события, так как dotnet build часто делает Created/Renamed
+        // Subscribe to all events as 'dotnet build' often uses Created/Renamed patterns
         watcher.Changed += onDllChanged;
         watcher.Created += onDllChanged;
         watcher.Renamed += (s, e) => onDllChanged(s, e);
@@ -172,7 +193,7 @@ public class PluginManager : IPluginManager
         
         _devWatchers[manifest.Id] = watcher;
         
-        // Жестко фиксируем в памяти, чтобы GC не собрал делегат
+        // Pin the delegate in memory to prevent GC collection
         _keepAlive.Add(onDllChanged);
     }
 
@@ -210,7 +231,7 @@ public class PluginManager : IPluginManager
 
     public Task<object?> InvokePluginMethodAsync(string sourcePluginId, string targetPluginId, string method, Dictionary<string, object>? args)
     {
-        // 1. Проверка API Scopes вызывающего (Zero Trust check)
+        // 1. Zero Trust: Check caller's API Scopes
         if (!_scopeManager.HasScope(sourcePluginId, $"api:plugin:{targetPluginId}"))
         {
             throw new UnauthorizedAccessException($"[Sandbox] Plugin {sourcePluginId} missing scope api:plugin:{targetPluginId} to perform Cross-Plugin RPC!");
@@ -225,7 +246,7 @@ public class PluginManager : IPluginManager
         if (!targetPlugin.ExportedMethods.TryGetValue(method, out var methodInfo))
             throw new MissingMethodException($"Plugin {targetPluginId} strongly denies access or missing method: {method}");
 
-        // 2. Сборка аргументов и Reflection-вызов
+        // 2. Argument binding and Reflection call
         var parameters = methodInfo.GetParameters();
         object?[] invokeArgs = new object?[parameters.Length];
 
@@ -236,23 +257,29 @@ public class PluginManager : IPluginManager
                 var pName = parameters[i].Name;
                 if (pName != null && args.TryGetValue(pName, out var val))
                 {
-                    // TODO: Реализовать глубокий JSON кастинг для сложной структуры аргументов
+                    // TODO: Implement deep JSON casting for complex argument structures
                     invokeArgs[i] = val; 
                 }
             }
         }
 
-        var result = methodInfo.Invoke(targetPlugin.PluginRuntime, invokeArgs);
-
-        return Task.FromResult(result);
+        try
+        {
+            var result = methodInfo.Invoke(targetPlugin.PluginRuntime, invokeArgs);
+            return Task.FromResult(result);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[RPC] Error calling {targetPluginId}.{method}: {ex.InnerException?.Message ?? ex.Message}");
+            throw;
+        }
     }
 }
 
-// ----------------------------------------------------------------------
-// LoadContext обеспечивает разделение зависимостей (Sandboxing) плагинов.
-// Если Плагин А использует Newtonsoft 11, а Плагин Б - Newtonsoft 13, 
-// они не войдут в Dependency Hell конфликт.
-// ----------------------------------------------------------------------
+/// <summary>
+/// AssemblyLoadContext that provides dependency isolation (Sandboxing) for plugins.
+/// Prevents "Dependency Hell" by allowing plugins to load their own versions of shared libraries.
+/// </summary>
 class PluginLoadContext : AssemblyLoadContext
 {
     private AssemblyDependencyResolver _resolver;
@@ -264,11 +291,11 @@ class PluginLoadContext : AssemblyLoadContext
 
     protected override Assembly? Load(AssemblyName assemblyName)
     {
-        // КРИТИЧЕСКИ ВАЖНО: Разделяемые (Shared) контракты должны грузиться только один раз в пространстве Ядра.
-        // Иначе typeof(IPawsPlugin) в ядре != typeof(IPawsPlugin) в плагине.
+        // CRITICAL: Shared contracts (like Paws.Abstractions) must only be loaded once in the Kernel space.
+        // Otherwise, typeof(IPawsPlugin) in kernel != typeof(IPawsPlugin) in plugin.
         if (assemblyName.Name == "Paws.Abstractions")
         {
-            return null; // Возврат null заставит CLR взять сборку из AssemblyLoadContext.Default (память Ядра)
+            return null; // Returning null forces the CLR to use AssemblyLoadContext.Default (Kernel memory)
         }
 
         string? assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);

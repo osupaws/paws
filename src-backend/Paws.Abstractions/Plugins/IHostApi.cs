@@ -5,51 +5,56 @@ using Paws.Abstractions.Services;
 namespace Paws.Abstractions.Plugins;
 
 /// <summary>
-/// Фасад для общения плагина с ядром (Sidecar).
-/// Плагин не получает прямых ссылок на системные синглтоны Ядра для своей же безопасности.
-/// Ядро инжектит реализации, в которые уже 'вшит' ID текущего плагина (Currying).
+/// Facade for plugin-to-kernel communication.
+/// Plugins do not get direct references to core services for safety.
+/// The Kernel injects implementations with pre-configured plugin context.
 /// </summary>
 public interface IHostApi
 {
     /// <summary>
-    /// Безопасный доступ к файлам только в пределах песочницы плагина (или выданных Scopes).
-    /// Плагин не передает свой ID, это делает фасадная обертка Ядра под капотом.
+    /// Safe file access within the plugin sandbox or granted scopes.
     /// </summary>
     ISandboxedStorage Storage { get; }
 
     /// <summary>
-    /// Базах данных игры (Lazer/Stable). Ядро автоматически читает из нужной БД.
+    /// Game data (Lazer/Stable). Kernel automatically resolves the active client.
     /// </summary>
     IGameDataService GameData { get; }
 
     /// <summary>
-    /// Состояние игры (включена/выключена, путь).
+    /// Game process monitoring (running status, installation path).
     /// </summary>
     IMonitoringService Monitor { get; }
 
     /// <summary>
-    /// Вызов публичного метода (Cross-Plugin API Bridge) другого плагина (если есть права в scopes: api:plugin:TARGET).
+    /// Virtual File System resolution (game:// protocol).
+    /// </summary>
+    IVfsService Vfs { get; }
+
+    /// <summary>
+    /// Invokes a public method on another plugin.
     /// </summary>
     Task<object?> InvokePluginAsync(string targetPluginId, string method, Dictionary<string, object>? args = null);
 }
 
 public interface ISandboxedStorage
 {
-    /// <summary>
-    /// Чтение файла из папки Data/Plugins/{Ваш плагин}/Data...
-    /// Защищено от '../' (Path Traversal) и не принимает абсолютные пути.
-    /// </summary>
+    // --- Sandbox Operations ---
     Task<byte[]> ReadFileAsync(string relativePath);
-
-    /// <summary>
-    /// Запись файла в папку изолированных данных плагина.
-    /// </summary>
     Task WriteFileAsync(string relativePath, byte[] data);
+    string GetDataDirectory();
+    string GetTempDirectory();
+
+    // --- Atomic Operations (Subject to Scopes) ---
+    bool FileExists(string path);
+    void DeleteFile(string path);
+    bool DirectoryExists(string path);
+    void DeleteDirectory(string path, bool recursive = false);
+    IEnumerable<string> ListFiles(string path, string searchPattern = "*");
+    IEnumerable<string> ListDirectories(string path, string searchPattern = "*");
 
     /// <summary>
-    /// Попытка прочитать файл по жесткому пути на диске. 
-    /// Сработает ТОЛЬКО если у плагина есть Scope на fs:stable:read, fs:lazer:read или Runtime-Scoope 'D:\MyFolder'.
-    /// Иначе выкинет UnauthorizedAccessException.
+    /// Direct byte reading by absolute path (requires appropriate scopes).
     /// </summary>
     Task<byte[]> ReadAbsolutePathAsync(string absolutePath);
 }

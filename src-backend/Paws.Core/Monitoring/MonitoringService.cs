@@ -9,6 +9,10 @@ using Paws.Abstractions.Services;
 
 namespace Paws.Core.Monitoring;
 
+/// <summary>
+/// Monitors running game processes and updates the HostState.
+/// Uses background polling to detect osu!stable and osu!lazer.
+/// </summary>
 public class MonitoringService : IMonitoringService, IDisposable
 {
     private readonly IConfigService _config;
@@ -59,7 +63,7 @@ public class MonitoringService : IMonitoringService, IDisposable
                 Console.WriteLine($"[MonitoringService] Error during scan: {ex.Message}");
             }
 
-            // Интервал сканирования в 3 секунды
+            // Check every 3 seconds
             await Task.Delay(3000, ct);
         }
     }

@@ -2,14 +2,23 @@ using System.Collections.Generic;
 
 namespace Paws.Abstractions.Services;
 
+/// <summary>
+/// Service for managing plugin permissions (Scopes).
+/// </summary>
 public interface IScopeManager
 {
-    // Проверка статического права из plugin.json (например, "fs:lazer:write")
+    // Register static scopes from the plugin manifest
+    void RegisterPluginScopes(string pluginId, IEnumerable<string> scopes);
+
+    // Check if a plugin has a specific scope (e.g. "filesystem-osu:write")
     bool HasScope(string pluginId, string scopeName);
     
-    // Выдача плагину динамического доступа к пользовательской папке (те самые 10 ГБ ассетов)
+    // Grants temporary runtime access to a specific folder
     void GrantRuntimeScope(string pluginId, string folderPath);
     
-    // Получение списка всех разрешенных динамических папок для валидации путей
+    // List all folders granted via runtime scopes
     IEnumerable<string> GetRuntimeAllowedFolders(string pluginId);
+
+    // Clears all temporary runtime scopes
+    void RevokeAllRuntimeScopes(string pluginId);
 }

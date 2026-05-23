@@ -1,5 +1,8 @@
 namespace Paws.Abstractions.Models;
 
+/// <summary>
+/// Core application configuration persistent across sessions.
+/// </summary>
 public class AppConfiguration
 {
     public bool IsLegacyMode { get; set; }

@@ -10,6 +10,10 @@ using System.Threading.Tasks;
 
 namespace Paws.Core.Services;
 
+/// <summary>
+/// Service for managing UI themes. 
+/// Handles persistence in Realm and CSS blob storage on disk.
+/// </summary>
 public class ThemeService : IThemeService
 {
     private readonly IDatabaseService _db;
@@ -17,7 +21,7 @@ public class ThemeService : IThemeService
     public ThemeService(IDatabaseService db)
     {
         _db = db;
-        InitializeBuiltInThemes(); // Инициализируем при создании
+        InitializeBuiltInThemes(); // Initialize on creation
     }
 
     private void InitializeBuiltInThemes()
@@ -85,7 +89,7 @@ public class ThemeService : IThemeService
             IsBuiltIn = model.IsBuiltIn,
             BaseThemeId = model.BaseThemeId,
             BlobHash = model.CssBlobHash
-            // CSS контент не грузим для списка, чтобы не забивать память
+            // Do not load CSS content for the list to save memory
         }).ToList();
         
         return Task.FromResult<IEnumerable<Theme>>(themes);
@@ -96,7 +100,7 @@ public class ThemeService : IThemeService
         if (string.IsNullOrEmpty(theme.Id))
             throw new ArgumentException("Theme ID cannot be empty");
 
-        // Защита: нельзя перезаписывать встроенные темы
+        // Protection: Cannot overwrite built-in themes
         if (theme.Id.StartsWith("paws-") || theme.IsBuiltIn)
         {
             using var r = _db.GetRealm();
@@ -127,7 +131,7 @@ public class ThemeService : IThemeService
                 Author = theme.Author,
                 Description = theme.Description,
                 CssBlobHash = hash,
-                IsBuiltIn = false, // Кастомная тема никогда не может стать встроенной через API
+                IsBuiltIn = false, // Custom themes cannot become built-in via API
                 BaseThemeId = string.IsNullOrEmpty(theme.BaseThemeId) ? "paws-dark" : theme.BaseThemeId
             }, update: true);
         });

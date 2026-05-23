@@ -1,0 +1,8 @@
+{
+  "id": "osupaws.cyan-vibe",
+  "name": "Cyan Vibe",
+  "author": "Antigravity",
+  "version": "1.0.0",
+  "description": "Тестовая тема с неоновым бирюзовым акцентом для проверки системы тем Paws.",
+  "base": "paws-dark"
+}

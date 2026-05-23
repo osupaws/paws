@@ -1,33 +1,44 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
+using Paws.Abstractions.Models;
 using Paws.Abstractions.Models.Game;
 
 namespace Paws.Abstractions.Services;
 
+/// <summary>
+/// Service for accessing game databases and beatmap metadata.
+/// Supports both osu!stable and osu!lazer.
+/// </summary>
 public interface IGameDataService
 {
-    // Статус
+    // Status
     bool IsLazerDatabaseAvailable { get; }
     bool IsStableDatabaseAvailable { get; }
+    GameClientType GetActiveClient();
 
-    // Основные методы поиска
+    // Core Search Methods
     Task<GameBeatmap?> GetBeatmapByHashAsync(string md5Hash);
     Task<IEnumerable<GameBeatmapSet>> GetAllBeatmapSetsAsync();
     
-    // Специализированные методы
+    // Specialized Search
     Task<IEnumerable<GameBeatmap>> SearchBeatmapsAsync(string query);
     
-    // Универсальный метод получения физического пути к любому файлу игры
-    // Для Lazer укажите hash (из GameFileUsage). 
-    // Для Stable укажите folderName (папка сета) и filename.
+    /// <summary>
+    /// Returns the absolute physical path to a game asset.
+    /// For Lazer: provide the file hash (GameFileUsage.Hash).
+    /// For Stable: provide folderName (set folder) and filename.
+    /// </summary>
     Task<string?> GetFilePathAsync(string? hash, string? folderName, string? filename);
 
-    // Коллекции
+    // Collections
     Task<IEnumerable<GameCollection>> GetAllCollectionsAsync();
     
-    // Рекорды
+    // Scores
     Task<IEnumerable<GameScore>> GetScoresByBeatmapHashAsync(string md5Hash);
     
-    // Скины
+    // Skins
     Task<IEnumerable<GameSkin>> GetAllSkinsAsync();
+
+    // Atomic Mutators (The Hands)
+    Task<bool> DeleteRecordAsync(string pluginId, GameClientType client, string type, string id);
+    Task<bool> UpdateRecordAsync(string pluginId, GameClientType client, string type, string id, object data);
 }

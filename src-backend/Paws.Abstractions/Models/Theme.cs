@@ -1,5 +1,8 @@
 namespace Paws.Abstractions.Models;
 
+/// <summary>
+/// Represents a UI theme definition.
+/// </summary>
 public class Theme
 {
     public string Id { get; set; } = string.Empty;

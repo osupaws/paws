@@ -166,7 +166,7 @@ const availablePlugins = computed(() => {
   flex-direction: column;
   gap: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .menu-section {

@@ -3,6 +3,9 @@ using Paws.Abstractions.Models.Game;
 
 namespace Paws.Drivers.Lazer.Mappers;
 
+/// <summary>
+/// Maps Lazer Realm beatmap objects to the abstract GameBeatmap model.
+/// </summary>
 public static class BeatmapMapper
 {
     public static GameBeatmap Map(dynamic lazerBeatmap)

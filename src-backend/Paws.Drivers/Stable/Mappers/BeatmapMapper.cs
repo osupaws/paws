@@ -4,6 +4,9 @@ using Paws.Abstractions.Models.Game;
 
 namespace Paws.Drivers.Stable.Mappers;
 
+/// <summary>
+/// Maps OsuParsers beatmap objects (from osu!.db) to the abstract GameBeatmap model.
+/// </summary>
 public static class BeatmapMapper
 {
     public static GameBeatmap Map(dynamic dbBeatmap)
@@ -12,7 +15,7 @@ public static class BeatmapMapper
         {
             Hash = dbBeatmap.MD5Hash ?? "",
             Md5Hash = dbBeatmap.MD5Hash ?? "",
-            OnlineId = dbBeatmap.BeatmapId, // В osu!.db это int
+            OnlineId = dbBeatmap.BeatmapId, // In osu!.db this is a plain int
             DifficultyName = dbBeatmap.Difficulty ?? "",
             
             Artist = dbBeatmap.ArtistUnicode ?? dbBeatmap.Artist ?? "",
@@ -28,12 +31,12 @@ public static class BeatmapMapper
             OverallDifficulty = (float)dbBeatmap.OverallDifficulty,
             DrainRate = (float)dbBeatmap.HPDrain,
             
-            // В Stable количество объектов хранится в явных полях
+            // Stable stores object counts in explicit fields
             CircleCount = (int)dbBeatmap.CirclesCount,
             SliderCount = (int)dbBeatmap.SlidersCount,
             SpinnerCount = (int)dbBeatmap.SpinnersCount,
 
-            // Bpm может быть в TimingPoints, мы берем первый
+            // Bpm can be in TimingPoints, we take the first one
             Bpm = (dbBeatmap.TimingPoints != null && dbBeatmap.TimingPoints.Count > 0) 
                   ? dbBeatmap.TimingPoints[0].BPM : 0,
 
@@ -41,7 +44,7 @@ public static class BeatmapMapper
             BeatmapSetId = dbBeatmap.BeatmapSetId,
             
             AudioFile = dbBeatmap.AudioFileName ?? "",
-            BackgroundFile = "", // В Stable фон в БД не хранится напрямую
+            BackgroundFile = "", // Stable DB does not store background info directly
             FolderName = dbBeatmap.FolderName ?? "",
             
             RankedStatus = (int)dbBeatmap.RankedStatus,
@@ -51,7 +54,7 @@ public static class BeatmapMapper
 
     private static float GetDefaultStarRating(dynamic dbBeatmap)
     {
-        // Пытаемся взять сложность для текущего режима без модов (Mods.None = 0)
+        // Attempt to get difficulty for the default mode without mods (Mods.None = 0)
         try {
             switch ((int)dbBeatmap.Ruleset) {
                 case 0: return (float)(dbBeatmap.StandardStarRating?[0] ?? 0);

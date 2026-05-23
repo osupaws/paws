@@ -10,6 +10,10 @@ using Paws.Abstractions.Services;
 
 namespace Paws.Core.Services;
 
+/// <summary>
+/// Service for importing .pawstheme and .pawsplugin archives.
+/// Handles metadata extraction and asset redirection.
+/// </summary>
 public class PackageImportService : IPackageImportService
 {
     private readonly IThemeService _themeService;
@@ -45,7 +49,7 @@ public class PackageImportService : IPackageImportService
                 throw new Exception("Invalid or empty manifest in the package.");
             }
 
-            // Автодетекция типа, если он не указан явно (например .pawstheme -> "theme")
+            // Auto-detect package type if not explicitly specified
             if (string.IsNullOrEmpty(manifest.Type))
             {
                 if (archiveFilePath.EndsWith(".pawstheme", StringComparison.OrdinalIgnoreCase))
@@ -60,7 +64,7 @@ public class PackageImportService : IPackageImportService
             }
             else if (manifest.Type.Equals("plugin", StringComparison.OrdinalIgnoreCase))
             {
-                // Плагины будем внедрять позже - там сложнее с DLL
+                // Plugins will be implemented later (DLL loading logic)
                 throw new NotImplementedException("Plugin imports are not implemented yet.");
             }
             else
@@ -77,7 +81,7 @@ public class PackageImportService : IPackageImportService
 
     private async Task<bool> ImportThemeAsync(PackageManifest manifest, ZipArchive archive)
     {
-        // 1. Находим точку входа CSS (по умолчанию theme.css)
+        // 1. Locate CSS entry point (default is theme.css)
         var entryName = !string.IsNullOrEmpty(manifest.Entry) ? manifest.Entry : "theme.css";
         var entryFile = archive.GetEntry(entryName);
         
@@ -93,8 +97,8 @@ public class PackageImportService : IPackageImportService
             cssContent = await reader.ReadToEndAsync();
         }
 
-        // 2. Ищем и заменяем ссылки на ассеты (картинки, шрифты) внутри CSS на блоб-протокол
-        // Регулярка для url('path'), url("path"), url(path)
+        // 2. Identify and replace asset links (images, fonts) inside CSS with blob protocol
+        // Regex for url('path'), url("path"), url(path)
         var urlRegex = new Regex(@"url\(['""]?(.*?)['""]?\)");
         var processedAssets = new Dictionary<string, string>();
 
@@ -104,20 +108,20 @@ public class PackageImportService : IPackageImportService
             if (match.Groups.Count < 2) continue;
             var assetPath = match.Groups[1].Value;
 
-            // Игнорируем внешние ссылки и data URL
+            // Ignore absolute links and data URLs
             if (assetPath.StartsWith("http://") || assetPath.StartsWith("https://") || assetPath.StartsWith("data:"))
             {
                 continue;
             }
 
-            // Если ассет уже обработан (кеш хеша)
+            // If asset already processed (cache hit)
             if (processedAssets.TryGetValue(assetPath, out var cachedHash))
             {
                 cssContent = cssContent.Replace(match.Captures[0].Value, $"url('pawstheme://{cachedHash}')");
                 continue;
             }
 
-            // Ищем ассет внутри архива (относительно корня)
+            // Search for asset within the archive
             var assetEntry = archive.GetEntry(assetPath);
             if (assetEntry != null)
             {
@@ -125,19 +129,19 @@ public class PackageImportService : IPackageImportService
                 using var ms = new MemoryStream();
                 await assetStream.CopyToAsync(ms);
 
-                // Сохраняем в папку data/ под хешем
+                // Save to data/ folder using content hash
                 var hash = await _storageService.SaveBlobAsync(ms.ToArray(), "application/octet-stream");
                 
                 processedAssets[assetPath] = hash;
                 
-                // В CSS ссылаемся на протокол, который Tauri подхватит из файла напрямую
+                // Link to custom protocol for Tauri redirection
                 cssContent = cssContent.Replace(match.Captures[0].Value, $"url('pawstheme://{hash}')");
                 
                 Console.WriteLine($"[PackageImportService] Theme asset '{assetPath}' imported as blob: {hash}");
             }
         }
 
-        // 3. Последним шагом - регистрируем тему в ThemeService через наш новый API
+        // 3. Register theme in ThemeService
         var theme = new Theme
         {
             Id = manifest.Id,
@@ -146,7 +150,7 @@ public class PackageImportService : IPackageImportService
             Author = manifest.Author,
             BaseThemeId = manifest.BaseThemeId ?? "paws-dark",
             IsBuiltIn = false,
-            Css = cssContent // CSS теперь содержит ссылки на локальные блобы
+            Css = cssContent // CSS now contains local blob references
         };
 
         await _themeService.AddThemeAsync(theme);

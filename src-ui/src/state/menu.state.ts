@@ -1,10 +1,14 @@
 import { reactive, onMounted, onUnmounted } from "vue";
+import { closeAllModals } from "./modal.state";
 
 export const menuState = reactive({
   isOpen: false,
 });
 
 export function toggleMenu() {
+  if (!menuState.isOpen) {
+    closeAllModals();
+  }
   menuState.isOpen = !menuState.isOpen;
 }
 

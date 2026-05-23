@@ -19,15 +19,18 @@ const setIframeRef = (el: any) => {
 
 function postThemeToIframe(isInitial = false) {
   if (!iframeRef.value?.contentWindow) return;
-  const theme = themeState.activeThemeId.includes("dark") ? "dark" : "light";
+  const activeTheme = themeState.availableThemes.find(t => t.id === themeState.activeThemeId);
+  const baseThemeId = activeTheme?.baseThemeId || (themeState.activeThemeId.startsWith("paws-") ? themeState.activeThemeId : "paws-dark");
+  const baseHref = `http://pawsapp.localhost/themes/${baseThemeId}.css`;
+  const customHref = activeTheme?.blobHash ? `http://pawstheme.localhost/${activeTheme.blobHash}` : "";
+
   iframeRef.value.contentWindow.postMessage(
     {
-      channel: "notice",
-      payload: {
-        type: "theme-changed",
-        theme,
-        initial: isInitial
-      }
+      type: "paws:theme-changed",
+      baseHref,
+      customHref,
+      themeId: themeState.activeThemeId,
+      initial: isInitial
     },
     "*"
   );

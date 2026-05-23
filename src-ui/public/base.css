@@ -1,0 +1,63 @@
+/* base.css - The core rendering foundation for Paws and its Plugins */
+@layer base, custom;
+
+@font-face {
+  font-family: "Wix Madefor Display";
+  src: url("/fonts/WixMadeforDisplay.ttf") format("truetype");
+  font-weight: 400 800;
+}
+
+@font-face {
+  font-family: "Fredoka";
+  src: url("/fonts/Fredoka.ttf") format("truetype");
+  font-weight: 300 700;
+}
+
+@font-face {
+  font-family: "Azeret Mono";
+  src: url("/fonts/AzeretMono.ttf") format("truetype");
+  font-weight: 400 800;
+}
+
+/* Global Reset & Base Rendering */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--paws-font-primary, sans-serif);
+  background-color: var(--paws-color-bg-primary, #121212);
+  color: var(--paws-color-text-primary, #fff);
+  font-weight: 500;
+  /* Force compositor layer for cleaner rendering and smoother transitions */
+  opacity: 0.999;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Scrollbars - matching Paws UX (Hidden but functional) */
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+*::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Global transition class - High specificity to override local mismatches */
+body.paws-theme-transitioning,
+body.paws-theme-transitioning *,
+body.paws-theme-transitioning *::before,
+body.paws-theme-transitioning *::after {
+  transition:
+    background-color 0.3s ease-in-out,
+    background-image 0.3s ease-in-out,
+    color 0.3s ease-in-out,
+    border-color 0.3s ease-in-out,
+    filter 0.3s ease-in-out,
+    box-shadow 0.3s ease-in-out !important;
+}

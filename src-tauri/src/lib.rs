@@ -254,7 +254,29 @@ pub fn run() {
           if file_path.exists() {
               if let Ok(file_bytes) = std::fs::read(&file_path) {
                   let mut content_type = "application/octet-stream";
-                  if relative_path.ends_with(".html") { content_type = "text/html"; }
+                  if relative_path.ends_with(".html") { 
+                      content_type = "text/html";
+                      let mut html = String::from_utf8_lossy(&file_bytes).into_owned();
+                      let injection_block = r#"
+    <link id="paws-base-link" rel="stylesheet" href="http://pawsapp.localhost/base.css">
+    <link id="paws-theme-link" rel="stylesheet" href="http://pawsapp.localhost/themes/paws-dark.css">
+    <link id="paws-custom-link" rel="stylesheet" href="">
+    <script src="http://pawsapp.localhost/paws-bridge.js"></script>
+    <style>* { scrollbar-width: none !important; -ms-overflow-style: none !important; } *::-webkit-scrollbar { display: none !important; }</style>
+"#;
+                      if let Some(pos) = html.find("</head>") {
+                          html.insert_str(pos, injection_block);
+                      } else {
+                          html.push_str(injection_block);
+                      }
+                      
+                      return Response::builder()
+                          .header(header::CONTENT_TYPE, content_type)
+                          .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+                          .status(200)
+                          .body(html.into_bytes())
+                          .unwrap();
+                  }
                   else if relative_path.ends_with(".js") || relative_path.ends_with(".mjs") { content_type = "application/javascript"; }
                   else if relative_path.ends_with(".css") { content_type = "text/css"; }
                   else if relative_path.ends_with(".svg") { content_type = "image/svg+xml"; }
