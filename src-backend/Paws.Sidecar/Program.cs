@@ -48,6 +48,7 @@ class Program
             services.AddSingleton<IPluginManager, Paws.Core.Plugins.PluginManager>();
 
             services.AddSingleton<IConfigService, ConfigService>();
+            services.AddSingleton<IOsuAuthService, OsuAuthService>();
             services.AddScoped<IThemeService, ThemeService>();
             services.AddScoped<IPackageImportService, PackageImportService>();
 

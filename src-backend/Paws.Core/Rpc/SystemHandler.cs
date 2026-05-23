@@ -18,14 +18,16 @@ public class SystemHandler : IRpcHandler
     private readonly IPluginManager _plugins;
     private readonly IDatabaseService _db;
     private readonly IPackageImportService _packageImport;
+    private readonly IOsuAuthService _auth;
 
-    public SystemHandler(IConfigService config, IThemeService themes, IPluginManager plugins, IDatabaseService db, IPackageImportService packageImport)
+    public SystemHandler(IConfigService config, IThemeService themes, IPluginManager plugins, IDatabaseService db, IPackageImportService packageImport, IOsuAuthService auth)
     {
         _config = config;
         _themes = themes;
         _plugins = plugins;
         _db = db;
         _packageImport = packageImport;
+        _auth = auth;
     }
 
     public bool CanHandle(string action) => 
@@ -40,7 +42,12 @@ public class SystemHandler : IRpcHandler
         action == "getDiscoveredPlugins" ||
         action == "getDbMetadata" ||
         action == "importPackage" ||
-        action == "loadDevPlugin";
+        action == "loadDevPlugin" ||
+        action == "initiateOsuLogin" ||
+        action == "waitForOsuCallback" ||
+        action == "getOsuAccessToken" ||
+        action == "getOsuProfile" ||
+        action == "logoutOsu";
 
     public async Task<object?> HandleAsync(string action, string callerId, Dictionary<string, JsonElement> parameters)
     {
@@ -100,6 +107,32 @@ public class SystemHandler : IRpcHandler
                     }
                 }
                 throw new ArgumentException("Path parameter missing");
+
+            case "initiateOsuLogin":
+                return _auth.InitiateLogin();
+
+            case "waitForOsuCallback":
+                int timeout = 120;
+                if (parameters.TryGetValue("timeout", out var timeoutEl))
+                {
+                    timeout = timeoutEl.GetInt32();
+                }
+                return await _auth.WaitForCallbackAsync(timeout);
+
+            case "getOsuAccessToken":
+                return await _auth.GetAccessTokenAsync();
+
+            case "getOsuProfile":
+                bool forceRefresh = false;
+                if (parameters.TryGetValue("refresh", out var refreshEl) && refreshEl.ValueKind == JsonValueKind.True)
+                {
+                    forceRefresh = true;
+                }
+                return await _auth.GetProfileAsync(forceRefresh);
+
+            case "logoutOsu":
+                await _auth.LogoutAsync();
+                return true;
 
             default:
                 // Handle remaining legacy commands...

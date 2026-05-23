@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 import { open } from "@tauri-apps/plugin-dialog";
 import { enable, disable } from "@tauri-apps/plugin-autostart";
 import { 
@@ -19,6 +19,7 @@ import { configState, saveConfig } from "../state/config.state";
 import { themeState, initThemes } from "../state/theme.state";
 import { modalState, closeSettings } from "../state/modal.state";
 import { callSidecar } from "../utils/sidecar-bridge";
+import { fetchProfile, clearProfile, profileState } from "../state/profile.state";
 
 
 // Local state for paths to prevent excessive backend calls if needed, 
@@ -150,6 +151,61 @@ const handleManualSave = async () => {
 const appVersion = ref("0.1.0-tauri");
 const schemaVersion = ref("20240412"); // matches current paws-next goal
 
+// osu! Connection Integration
+const isOsuConnected = ref(false);
+const isConnecting = ref(false);
+const osuToken = ref<string | null>(null);
+
+const checkOsuConnection = async () => {
+  const resp = await callSidecar<string | null>("getOsuAccessToken");
+  if (resp.success && resp.data) {
+    isOsuConnected.value = true;
+    osuToken.value = resp.data;
+    await fetchProfile();
+  } else {
+    isOsuConnected.value = false;
+    osuToken.value = null;
+    clearProfile();
+  }
+};
+
+const handleConnectOsu = async () => {
+  isConnecting.value = true;
+  const initResp = await callSidecar<string>("initiateOsuLogin");
+  if (!initResp.success) {
+    console.error("Failed to initiate osu! login:", initResp.error);
+    isConnecting.value = false;
+    return;
+  }
+  
+  const waitResp = await callSidecar<boolean>("waitForOsuCallback", { timeout: 120 });
+  if (waitResp.success && waitResp.data) {
+    console.log("osu! connected successfully!");
+  } else {
+    console.error("osu! connection failed or timed out:", waitResp.error);
+  }
+  
+  isConnecting.value = false;
+  await checkOsuConnection();
+};
+
+const handleDisconnectOsu = async () => {
+  await callSidecar("logoutOsu");
+  await checkOsuConnection();
+};
+
+const isRefreshing = ref(false);
+const handleRefreshProfile = async () => {
+  if (isRefreshing.value) return;
+  isRefreshing.value = true;
+  await fetchProfile(true);
+  isRefreshing.value = false;
+};
+
+onMounted(() => {
+  checkOsuConnection();
+});
+
 </script>
 
 <template>
@@ -236,6 +292,58 @@ const schemaVersion = ref("20240412"); // matches current paws-next goal
               <DownloadIcon />
             </template>
           </PawsSubButton>
+        </div>
+      </PawsCard>
+
+      <!-- osu! Account Connection -->
+      <PawsCard mode="titled" class="settings-card">
+        <template #heading>
+          <PawsHeading size="lg" font-weight="medium" align="left">osu! profile</PawsHeading>
+        </template>
+
+        <div class="profile-container">
+          <div class="profile-info">
+            <img :src="profileState.avatarUrl" class="profile-avatar" />
+            <div class="profile-details">
+              <span class="profile-username">{{ profileState.username }}</span>
+              <span class="profile-status" :class="{ 'connected': profileState.isConnected }">
+                {{ profileState.isConnected ? 'connected' : 'not connected' }}
+              </span>
+            </div>
+          </div>
+          <div class="profile-actions">
+            <PawsSubButton 
+              v-if="profileState.isConnected"
+              v-paws-tooltip="'Refresh profile data'"
+              size="medium"
+              :disabled="isRefreshing"
+              @click="handleRefreshProfile"
+              class="refresh-btn"
+            >
+              <template #icon>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" :class="{ 'spinning': isRefreshing }">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+              </template>
+            </PawsSubButton>
+            <PawsSubButton 
+              v-if="!profileState.isConnected"
+              v-paws-tooltip="'Link your osu! account via OAuth'"
+              size="medium"
+              :disabled="isConnecting"
+              @click="handleConnectOsu"
+              class="connect-btn"
+              :text="isConnecting ? 'connecting...' : 'connect'"
+            />
+            <PawsSubButton 
+              v-else
+              v-paws-tooltip="'Disconnect your osu! account'"
+              size="medium"
+              @click="handleDisconnectOsu"
+              class="connect-btn"
+              text="disconnect"
+            />
+          </div>
         </div>
       </PawsCard>
 
@@ -463,5 +571,99 @@ const schemaVersion = ref("20240412"); // matches current paws-next goal
 
 .full-width-btn {
   width: 100%;
+}
+
+.profile-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  box-sizing: border-box;
+  background-color: var(--paws-color-bg-subprimary);
+  padding: 8px 12px;
+  border-radius: var(--paws-rounding-medium);
+}
+
+.profile-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--paws-rounding-medium-inner);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-username {
+  font-family: "Fredoka", var(--paws-font-primary);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--paws-color-text-primary);
+  line-height: 1.2;
+}
+
+.profile-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--paws-color-text-secondary);
+}
+
+.profile-status::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--paws-color-text-secondary);
+  opacity: 0.5;
+}
+
+.profile-status.connected::before {
+  background-color: var(--paws-color-success, #22c55e);
+  opacity: 1;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.connect-btn {
+  height: 32px;
+  padding: 0 12px !important;
+  border-radius: var(--paws-rounding-medium-inner);
+}
+
+.refresh-btn {
+  height: 32px;
+  width: 32px;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--paws-rounding-medium-inner);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
 }
 </style>

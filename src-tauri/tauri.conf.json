@@ -29,7 +29,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' http://localhost:* http://ipc.localhost ipc: http://pawsapp.localhost http://pawstheme.localhost http://pawsplugin.localhost pawsapp: pawstheme: pawsplugin:; frame-src 'self' http://pawsplugin.localhost pawsplugin:; style-src 'self' 'unsafe-inline' http://localhost:* http://pawsapp.localhost http://pawstheme.localhost http://pawsplugin.localhost pawsapp: pawstheme: pawsplugin:; img-src 'self' data: http://localhost:* http://pawsapp.localhost http://pawstheme.localhost http://pawsplugin.localhost pawsapp: pawstheme: pawsplugin:; font-src 'self' data: http://localhost:* http://pawsapp.localhost http://pawstheme.localhost http://pawsplugin.localhost pawsapp: pawstheme: pawsplugin:;"
+      "csp": "default-src 'self' http://localhost:* http://ipc.localhost ipc: http://pawsapp.localhost http://pawstheme.localhost http://pawsplugin.localhost pawsapp: pawstheme: pawsplugin:; frame-src 'self' http://pawsplugin.localhost pawsplugin:; style-src 'self' 'unsafe-inline' http://localhost:* http://pawsapp.localhost http://pawstheme.localhost http://pawsplugin.localhost pawsapp: pawstheme: pawsplugin:; img-src 'self' data: https: http://localhost:* http://pawsapp.localhost http://pawstheme.localhost http://pawsplugin.localhost pawsapp: pawstheme: pawsplugin:; font-src 'self' data: http://localhost:* http://pawsapp.localhost http://pawstheme.localhost http://pawsplugin.localhost pawsapp: pawstheme: pawsplugin:;"
     }
   },
   "bundle": {

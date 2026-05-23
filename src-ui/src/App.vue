@@ -27,6 +27,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { MinimizeIcon, CloseIcon, PawsTooltip } from "@osupaws/paws-ui";
+import { profileState, fetchProfile } from "./state/profile.state";
 
 const appWindow = getCurrentWindow();
 const isMounted = ref(false);
@@ -104,6 +105,7 @@ onMounted(async () => {
   isMounted.value = true;
   window.addEventListener("keydown", onGlobalKeydown);
   initPawsBridge();
+  fetchProfile();
 
   // Перехват закрытия: прячем в трей, если включено
   appWindow.onCloseRequested(async (event) => {
@@ -219,7 +221,8 @@ const handleReady = async () => {
               @click="toggleMenu"
               @mousedown.stop
             >
-              <span class="nav-label">menu</span>
+              <img :src="profileState.avatarUrl" class="nav-avatar" />
+              <span class="nav-username">{{ profileState.username }}</span>
             </button>
           </div>
 
@@ -407,21 +410,52 @@ const handleReady = async () => {
 }
 
 .nav-button {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  height: 36px;
+  min-width: 100px;
+  max-width: 248px;
   background-color: var(--paws-color-interactive-primary);
   border: none;
-  height: 32px;
-  padding: 0 12px;
-  border-radius: var(--paws-rounding-normal);
-  color: var(--paws-color-text-secondary);
-  font-family: var(--paws-font-primary);
-  font-weight: var(--paws-font-weight-medium);
+  border-radius: var(--paws-rounding-medium);
+  padding: 3px 8px 3px 3px;
+  display: flex;
+  align-items: center;
   cursor: pointer;
+  overflow: hidden;
   transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
 }
 
 .nav-button:hover,
 .nav-button.active {
   background-color: var(--paws-color-accent-primary);
+}
+
+.nav-avatar {
+  width: 30px;
+  height: 30px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border-radius: var(--paws-rounding-medium-inner);
+}
+
+.nav-username {
+  font-family: "Fredoka", var(--paws-font-primary);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--paws-color-text-secondary);
+  margin-left: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transform: translateY(-1px);
+  transition: color 0.2s ease;
+}
+
+.nav-button:hover .nav-username,
+.nav-button.active .nav-username {
   color: var(--paws-color-accent-secondary);
 }
 
