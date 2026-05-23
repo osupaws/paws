@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
-import { configState, toggleLegacyMode, saveConfig } from "../state/config.state";
+import {
+  configState,
+  toggleLegacyMode,
+  saveConfig,
+} from "../state/config.state";
 import { themeState, applyTheme } from "../state/theme.state";
-import { openSettings } from "../state/modal.state";
 import { profileState } from "../state/profile.state";
 import { pluginState, fetchPlugins } from "../state/plugin.state";
 import { openPlugins } from "../state/modal.state";
@@ -11,10 +14,14 @@ import { PawsCard } from "@osupaws/paws-ui";
 const cycleTheme = async () => {
   const themes = themeState.availableThemes;
   if (!themes || themes.length <= 1) return;
-  const currentIndex = themes.findIndex(t => t.id === themeState.activeThemeId);
+  const currentIndex = themes.findIndex(
+    (t) => t.id === themeState.activeThemeId,
+  );
   const nextIndex = (currentIndex + 1) % themes.length;
-  const nextTheme = themes[nextIndex].id;
-  
+  const nextThemeObj = themes[nextIndex];
+  if (!nextThemeObj) return;
+  const nextTheme = nextThemeObj.id;
+
   themeState.activeThemeId = nextTheme;
   configState.currentThemeId = nextTheme;
   applyTheme(nextTheme, configState.isShowTips);
