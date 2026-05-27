@@ -43,6 +43,21 @@ export function applyTheme(themeId: string, showTips?: boolean) {
     theme: theme.baseThemeId?.includes("dark") ? "dark" : "light",
     ...(showTips !== undefined ? { showTooltips: showTips } : {})
   });
+
+  // Asynchronously read and cache splash screen colors from computed styles (zero launch delay)
+  setTimeout(() => {
+    try {
+      const bg = getComputedStyle(document.body).getPropertyValue('--paws-color-bg-primary').trim();
+      const text = getComputedStyle(document.body).getPropertyValue('--paws-color-text-primary').trim();
+      const accent = getComputedStyle(document.body).getPropertyValue('--paws-color-accent-primary').trim();
+      
+      if (bg) localStorage.setItem('paws-splash-bg', bg);
+      if (text) localStorage.setItem('paws-splash-text', text);
+      if (accent) localStorage.setItem('paws-splash-accent', accent);
+    } catch (e) {
+      console.warn("[ThemeManager] Failed to cache splash theme styles:", e);
+    }
+  }, 150);
 }
 
 export function setThemeBase(base: "dark" | "light") {
