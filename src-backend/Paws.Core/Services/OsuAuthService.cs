@@ -18,6 +18,14 @@ public class OsuAuthService : IOsuAuthService
 {
     private readonly IConfigService _config;
 
+    private static readonly HttpClient _httpClient = new(new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(15)
+    })
+    {
+        DefaultRequestHeaders = { { "User-Agent", "Paws-App" } }
+    };
+
     private TaskCompletionSource<bool>? _callbackTcs;
     private string? _codeVerifier;
     private string? _authState;
@@ -218,13 +226,12 @@ public class OsuAuthService : IOsuAuthService
         }
 
         Console.WriteLine($"[OAuth] GetProfileAsync: Verifying connection with {OsuBuildConfig.BaseAuthUrl}/api/v2/me");
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("User-Agent", "Paws-App");
-        client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"{OsuBuildConfig.BaseAuthUrl}/api/v2/me");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         try
         {
-            var response = await client.GetAsync($"{OsuBuildConfig.BaseAuthUrl}/api/v2/me");
+            var response = await _httpClient.SendAsync(request);
             Console.WriteLine($"[OAuth] GetProfileAsync: HTTP Status Code = {response.StatusCode}");
 
             if (response.IsSuccessStatusCode)
@@ -282,8 +289,6 @@ public class OsuAuthService : IOsuAuthService
 
     private async Task<bool> ExchangeCodeForTokenAsync(string code)
     {
-        using var client = new HttpClient();
-
         try
         {
             HttpResponseMessage response;
@@ -301,7 +306,7 @@ public class OsuAuthService : IOsuAuthService
                     { "code_verifier", _codeVerifier ?? "" }
                 };
                 var formContent = new FormUrlEncodedContent(parameters);
-                response = await client.PostAsync($"{OsuBuildConfig.BaseAuthUrl}/oauth/token", formContent);
+                response = await _httpClient.PostAsync($"{OsuBuildConfig.BaseAuthUrl}/oauth/token", formContent);
             }
             else
 #endif
@@ -313,7 +318,7 @@ public class OsuAuthService : IOsuAuthService
                     code_verifier = _codeVerifier ?? ""
                 };
                 var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                response = await client.PostAsync(OsuBuildConfig.ProxyUrl, jsonContent);
+                response = await _httpClient.PostAsync(OsuBuildConfig.ProxyUrl, jsonContent);
             }
 
             if (!response.IsSuccessStatusCode)
@@ -327,11 +332,7 @@ public class OsuAuthService : IOsuAuthService
             var data = JsonSerializer.Deserialize<OsuTokenResponse>(json);
             if (data != null)
             {
-                await _config.SetSettingAsync("osu_access_token", data.AccessToken);
-                await _config.SetSettingAsync("osu_refresh_token", data.RefreshToken);
-
-                var expiryUnix = DateTimeOffset.UtcNow.AddSeconds(data.ExpiresIn).ToUnixTimeSeconds();
-                await _config.SetSettingAsync("osu_token_expiry", expiryUnix.ToString());
+                await SaveTokensAsync(data);
                 return true;
             }
         }
@@ -344,8 +345,6 @@ public class OsuAuthService : IOsuAuthService
 
     private async Task<bool> RefreshTokensAsync(string refreshToken)
     {
-        using var client = new HttpClient();
-
         try
         {
             HttpResponseMessage response;
@@ -361,7 +360,7 @@ public class OsuAuthService : IOsuAuthService
                     { "refresh_token", refreshToken }
                 };
                 var formContent = new FormUrlEncodedContent(parameters);
-                response = await client.PostAsync($"{OsuBuildConfig.BaseAuthUrl}/oauth/token", formContent);
+                response = await _httpClient.PostAsync($"{OsuBuildConfig.BaseAuthUrl}/oauth/token", formContent);
             }
             else
 #endif
@@ -373,7 +372,7 @@ public class OsuAuthService : IOsuAuthService
                     refresh_token = refreshToken
                 };
                 var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-                response = await client.PostAsync(OsuBuildConfig.ProxyUrl, jsonContent);
+                response = await _httpClient.PostAsync(OsuBuildConfig.ProxyUrl, jsonContent);
             }
 
             if (!response.IsSuccessStatusCode) return false;
@@ -382,11 +381,7 @@ public class OsuAuthService : IOsuAuthService
             var data = JsonSerializer.Deserialize<OsuTokenResponse>(json);
             if (data != null)
             {
-                await _config.SetSettingAsync("osu_access_token", data.AccessToken);
-                await _config.SetSettingAsync("osu_refresh_token", data.RefreshToken);
-
-                var expiryUnix = DateTimeOffset.UtcNow.AddSeconds(data.ExpiresIn).ToUnixTimeSeconds();
-                await _config.SetSettingAsync("osu_token_expiry", expiryUnix.ToString());
+                await SaveTokensAsync(data);
                 return true;
             }
         }
@@ -394,29 +389,22 @@ public class OsuAuthService : IOsuAuthService
         return false;
     }
 
-    // Cryptographic Helpers for PKCE
-    private static string GenerateVerifier()
+    private async Task SaveTokensAsync(OsuTokenResponse data)
     {
-        var bytes = new byte[32];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(bytes);
-        return Base64UrlEncode(bytes);
+        await _config.SetSettingAsync("osu_access_token", data.AccessToken);
+        await _config.SetSettingAsync("osu_refresh_token", data.RefreshToken);
+        var expiryUnix = DateTimeOffset.UtcNow.AddSeconds(data.ExpiresIn).ToUnixTimeSeconds();
+        await _config.SetSettingAsync("osu_token_expiry", expiryUnix.ToString());
     }
 
-    private static string GenerateChallenge(string verifier)
-    {
-        using var sha256 = SHA256.Create();
-        var bytes = sha256.ComputeHash(Encoding.ASCII.GetBytes(verifier));
-        return Base64UrlEncode(bytes);
-    }
+    // Zero-allocation cryptographic helpers for PKCE
+    private static string GenerateVerifier() => Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
 
-    private static string Base64UrlEncode(byte[] bytes)
-    {
-        return Convert.ToBase64String(bytes)
-            .Replace("+", "-")
-            .Replace("/", "_")
-            .Replace("=", "");
-    }
+    private static string GenerateChallenge(string verifier) => 
+        Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
+
+    private static string Base64UrlEncode(byte[] bytes) =>
+        Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
 
     private class OsuTokenResponse
     {
