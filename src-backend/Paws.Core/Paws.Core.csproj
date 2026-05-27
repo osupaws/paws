@@ -33,15 +33,15 @@
       <GeneratedCode>
 <![CDATA[
 // Auto-generated build config. Do not modify.
-namespace Paws.Core.Services;
+namespace Paws.Core.Services%3B
 
 public static class OsuBuildConfig
 {
-    public const string ClientId = "$(OsuClientId)";
-    public const string BaseAuthUrl = "$(OsuBaseAuthUrl)";
-    public const string ProxyUrl = "$(OsuProxyUrl)";
-    public const string RedirectUrl = "$(OsuRedirectUrl)";
-    public const string ClientSecret = "$(OsuClientSecret)";
+    public const string ClientId = "$(OsuClientId)"%3B
+    public const string BaseAuthUrl = "$(OsuBaseAuthUrl)"%3B
+    public const string ProxyUrl = "$(OsuProxyUrl)"%3B
+    public const string RedirectUrl = "$(OsuRedirectUrl)"%3B
+    public const string ClientSecret = "$(OsuClientSecret)"%3B
 }
 ]]>
       </GeneratedCode>
