@@ -18,11 +18,7 @@ public class OsuAuthService : IOsuAuthService
 {
     private readonly IConfigService _config;
 
-    private const string ClientId = "41";
-    private const string BaseAuthUrl = "https://dev.ppy.sh";
-    private const string ProxyUrl = "https://paws-auth.shshx.workers.dev/";
-
-    private HttpListener? _listener;
+    private TaskCompletionSource<bool>? _callbackTcs;
     private string? _codeVerifier;
     private string? _authState;
 
@@ -37,11 +33,9 @@ public class OsuAuthService : IOsuAuthService
         var challenge = GenerateChallenge(_codeVerifier);
         _authState = Guid.NewGuid().ToString("N");
 
-        var redirectUri = Uri.EscapeDataString("http://127.0.0.1:40012/callback");
+        var redirectUri = Uri.EscapeDataString(OsuBuildConfig.RedirectUrl);
 
-        StartListener();
-
-        var url = $"{BaseAuthUrl}/oauth/authorize?client_id={ClientId}&redirect_uri={redirectUri}&response_type=code&scope=identify&state={_authState}&code_challenge={challenge}&code_challenge_method=S256";
+        var url = $"{OsuBuildConfig.BaseAuthUrl}/oauth/authorize?client_id={OsuBuildConfig.ClientId}&redirect_uri={redirectUri}&response_type=code&scope=identify&state={_authState}&code_challenge={challenge}&code_challenge_method=S256";
 
         OpenUrl(url);
 
@@ -73,55 +67,62 @@ public class OsuAuthService : IOsuAuthService
 
     public async Task<bool> WaitForCallbackAsync(int timeoutSeconds = 120)
     {
-        if (_listener == null || !_listener.IsListening) return false;
-
+        _callbackTcs = new TaskCompletionSource<bool>();
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+        
+        using (cts.Token.Register(() => _callbackTcs.TrySetResult(false)))
+        {
+            return await _callbackTcs.Task;
+        }
+    }
 
+    public bool HandleCallback(string url)
+    {
+        Console.WriteLine($"[OAuth] Received callback URL: {url}");
         try
         {
-            // Asynchronously wait for the browser redirect context
-            var getContextTask = _listener.GetContextAsync();
-            var completedTask = await Task.WhenAny(getContextTask, Task.Delay(-1, cts.Token));
+            string? code = null;
+            string? state = null;
 
-            if (completedTask != getContextTask)
+            var queryStart = url.IndexOf('?');
+            if (queryStart >= 0)
             {
-                // Timeout hit
-                return false;
+                var queryString = url.Substring(queryStart + 1);
+                var pairs = queryString.Split('&');
+                foreach (var pair in pairs)
+                {
+                    var parts = pair.Split('=');
+                    if (parts.Length == 2)
+                    {
+                        var key = Uri.UnescapeDataString(parts[0]);
+                        var val = Uri.UnescapeDataString(parts[1]);
+                        if (key == "code") code = val;
+                        else if (key == "state") state = val;
+                    }
+                }
             }
 
-            var context = await getContextTask;
-            var req = context.Request;
-            var res = context.Response;
-
-            var code = req.QueryString["code"];
-            var state = req.QueryString["state"];
-
-            bool success = false;
             if (state == _authState && !string.IsNullOrEmpty(code))
             {
-                success = await ExchangeCodeForTokenAsync(code);
+                Task.Run(async () =>
+                {
+                    bool success = await ExchangeCodeForTokenAsync(code);
+                    _callbackTcs?.TrySetResult(success);
+                });
+                return true;
             }
-
-            string responseHtml = success
-                ? "<html><head><meta charset='utf-8'/><style>body{font-family:sans-serif;text-align:center;padding:50px;background:#181213;color:#eddfe1;}</style></head><body><h1>Paws Connection Successful!</h1><p>You can close this tab and return to the app.</p></body></html>"
-                : "<html><head><meta charset='utf-8'/><style>body{font-family:sans-serif;text-align:center;padding:50px;background:#181213;color:#ffb4ab;}</style></head><body><h1>Connection Failed</h1><p>State mismatch or invalid authorization code.</p></body></html>";
-
-            byte[] buffer = Encoding.UTF8.GetBytes(responseHtml);
-            res.ContentLength64 = buffer.Length;
-            res.ContentType = "text/html; charset=utf-8";
-            await res.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-            res.OutputStream.Close();
-
-            return success;
+            else
+            {
+                Console.WriteLine($"[OAuth] Validation failed. Expected state: {_authState}, received: {state}");
+                _callbackTcs?.TrySetResult(false);
+                return false;
+            }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[OAuth] Error processing callback: {ex.Message}");
+            Console.WriteLine($"[OAuth] Exception parsing callback URL: {ex.Message}");
+            _callbackTcs?.TrySetResult(false);
             return false;
-        }
-        finally
-        {
-            StopListener();
         }
     }
 
@@ -149,8 +150,11 @@ public class OsuAuthService : IOsuAuthService
         return accessToken;
     }
 
+    private OsuProfile? _verifiedProfile;
+
     public async Task LogoutAsync()
     {
+        _verifiedProfile = null;
         await _config.SetSettingAsync("osu_access_token", "");
         await _config.SetSettingAsync("osu_refresh_token", "");
         await _config.SetSettingAsync("osu_token_expiry", "");
@@ -158,105 +162,160 @@ public class OsuAuthService : IOsuAuthService
         await _config.SetSettingAsync("osu_avatar_url", "");
     }
 
+    private Task<OsuProfile?>? _activeProfileTask;
+    private readonly object _taskLock = new object();
+
     public async Task<OsuProfile?> GetProfileAsync(bool forceRefresh = false)
     {
         Console.WriteLine($"[OAuth] GetProfileAsync: Entering (forceRefresh={forceRefresh})...");
+
+        if (!forceRefresh && _verifiedProfile != null)
+        {
+            Console.WriteLine($"[OAuth] GetProfileAsync: Returning verified in-memory profile: {_verifiedProfile.Username}");
+            return _verifiedProfile;
+        }
+
+        Task<OsuProfile?>? currentTask = null;
+        lock (_taskLock)
+        {
+            if (!forceRefresh && _activeProfileTask != null)
+            {
+                Console.WriteLine("[OAuth] GetProfileAsync: Sharing already active in-flight profile fetch task.");
+                currentTask = _activeProfileTask;
+            }
+            else
+            {
+                _activeProfileTask = FetchAndVerifyProfileInternalAsync();
+                currentTask = _activeProfileTask;
+            }
+        }
+
+        try
+        {
+            return await currentTask;
+        }
+        finally
+        {
+            lock (_taskLock)
+            {
+                if (_activeProfileTask == currentTask)
+                {
+                    _activeProfileTask = null;
+                }
+            }
+        }
+    }
+
+
+    private async Task<OsuProfile?> FetchAndVerifyProfileInternalAsync()
+    {
         var token = await GetAccessTokenAsync();
         if (string.IsNullOrEmpty(token))
         {
             Console.WriteLine("[OAuth] GetProfileAsync: Token is null or empty.");
+            _verifiedProfile = null;
             return null;
         }
 
-        var cachedUsername = await _config.GetSettingAsync("osu_username");
-        var cachedAvatar = await _config.GetSettingAsync("osu_avatar_url");
-
-        if (!forceRefresh && !string.IsNullOrEmpty(cachedUsername) && !string.IsNullOrEmpty(cachedAvatar))
-        {
-            Console.WriteLine($"[OAuth] GetProfileAsync: Found cached profile: {cachedUsername}");
-            return new OsuProfile { Username = cachedUsername, AvatarUrl = cachedAvatar };
-        }
-
-        Console.WriteLine($"[OAuth] GetProfileAsync: No cache. Fetching from {BaseAuthUrl}/api/v2/me");
+        Console.WriteLine($"[OAuth] GetProfileAsync: Verifying connection with {OsuBuildConfig.BaseAuthUrl}/api/v2/me");
         using var client = new HttpClient();
         client.DefaultRequestHeaders.Add("User-Agent", "Paws-App");
         client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
         try
         {
-            var response = await client.GetAsync($"{BaseAuthUrl}/api/v2/me");
+            var response = await client.GetAsync($"{OsuBuildConfig.BaseAuthUrl}/api/v2/me");
             Console.WriteLine($"[OAuth] GetProfileAsync: HTTP Status Code = {response.StatusCode}");
+
             if (response.IsSuccessStatusCode)
             {
                 var json = await response.Content.ReadAsStringAsync();
                 var profile = JsonSerializer.Deserialize<OsuProfile>(json);
                 if (profile != null)
                 {
-                    Console.WriteLine($"[OAuth] GetProfileAsync: Successfully fetched profile for user {profile.Username}");
+                    Console.WriteLine($"[OAuth] GetProfileAsync: Successfully verified profile for user {profile.Username}");
                     await _config.SetSettingAsync("osu_username", profile.Username);
                     await _config.SetSettingAsync("osu_avatar_url", profile.AvatarUrl);
+                    _verifiedProfile = profile;
                     return profile;
                 }
+            }
+            else if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Console.WriteLine("[OAuth] Token is invalid or revoked. Logging out.");
+                await LogoutAsync();
             }
             else
             {
                 var errContent = await response.Content.ReadAsStringAsync();
                 Console.WriteLine($"[OAuth] Failed to fetch profile. Code: {response.StatusCode}, Resp: {errContent}");
+
+                // Fallback to cached values if it's a non-auth server/network error
+                var cachedUsername = await _config.GetSettingAsync("osu_username");
+                var cachedAvatar = await _config.GetSettingAsync("osu_avatar_url");
+                if (!string.IsNullOrEmpty(cachedUsername))
+                {
+                    Console.WriteLine($"[OAuth] Temporary server error. Falling back to DB cache: {cachedUsername}");
+                    _verifiedProfile = new OsuProfile { Username = cachedUsername ?? "", AvatarUrl = cachedAvatar ?? "" };
+                    return _verifiedProfile;
+                }
             }
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[OAuth] Exception during profile fetch: {ex.Message}");
-        }
 
-        return null;
-    }
-
-    private void StartListener()
-    {
-        StopListener();
-
-        try
-        {
-            _listener = new HttpListener();
-            _listener.Prefixes.Add("http://127.0.0.1:40012/callback/");
-            _listener.Start();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[OAuth] Failed to start HttpListener: {ex}");
-            throw new InvalidOperationException($"Failed to bind port 40012. Details: {ex.Message}", ex);
-        }
-    }
-
-    private void StopListener()
-    {
-        if (_listener == null) return;
-        try
-        {
-            if (_listener.IsListening)
+            // Fallback to cached values on network/connection timeout errors
+            var cachedUsername = await _config.GetSettingAsync("osu_username");
+            var cachedAvatar = await _config.GetSettingAsync("osu_avatar_url");
+            if (!string.IsNullOrEmpty(cachedUsername))
             {
-                _listener.Stop();
+                Console.WriteLine($"[OAuth] Network connection error. Falling back to DB cache: {cachedUsername}");
+                _verifiedProfile = new OsuProfile { Username = cachedUsername ?? "", AvatarUrl = cachedAvatar ?? "" };
+                return _verifiedProfile;
             }
-            _listener.Close();
         }
-        catch { }
-        _listener = null;
+
+        _verifiedProfile = null;
+        return null;
     }
 
     private async Task<bool> ExchangeCodeForTokenAsync(string code)
     {
         using var client = new HttpClient();
-        var payload = new
-        {
-            code = code,
-            code_verifier = _codeVerifier ?? ""
-        };
 
-        var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
         try
         {
-            var response = await client.PostAsync(ProxyUrl, jsonContent);
+            HttpResponseMessage response;
+#if HAS_CLIENT_SECRET
+            if (!string.IsNullOrEmpty(OsuBuildConfig.ClientSecret))
+            {
+                Console.WriteLine("[OAuth] ExchangeCodeForTokenAsync: Exchanging code DIRECTLY with osu! API...");
+                var parameters = new Dictionary<string, string>
+                {
+                    { "client_id", OsuBuildConfig.ClientId },
+                    { "client_secret", OsuBuildConfig.ClientSecret },
+                    { "code", code },
+                    { "grant_type", "authorization_code" },
+                    { "redirect_uri", OsuBuildConfig.RedirectUrl },
+                    { "code_verifier", _codeVerifier ?? "" }
+                };
+                var formContent = new FormUrlEncodedContent(parameters);
+                response = await client.PostAsync($"{OsuBuildConfig.BaseAuthUrl}/oauth/token", formContent);
+            }
+            else
+#endif
+            {
+                Console.WriteLine("[OAuth] ExchangeCodeForTokenAsync: Exchanging code via Proxy Worker...");
+                var payload = new
+                {
+                    code = code,
+                    code_verifier = _codeVerifier ?? ""
+                };
+                var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                response = await client.PostAsync(OsuBuildConfig.ProxyUrl, jsonContent);
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 var error = await response.Content.ReadAsStringAsync();
@@ -286,16 +345,37 @@ public class OsuAuthService : IOsuAuthService
     private async Task<bool> RefreshTokensAsync(string refreshToken)
     {
         using var client = new HttpClient();
-        var payload = new
-        {
-            grant_type = "refresh_token",
-            refresh_token = refreshToken
-        };
 
-        var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
         try
         {
-            var response = await client.PostAsync(ProxyUrl, jsonContent);
+            HttpResponseMessage response;
+#if HAS_CLIENT_SECRET
+            if (!string.IsNullOrEmpty(OsuBuildConfig.ClientSecret))
+            {
+                Console.WriteLine("[OAuth] RefreshTokensAsync: Refreshing tokens DIRECTLY with osu! API...");
+                var parameters = new Dictionary<string, string>
+                {
+                    { "client_id", OsuBuildConfig.ClientId },
+                    { "client_secret", OsuBuildConfig.ClientSecret },
+                    { "grant_type", "refresh_token" },
+                    { "refresh_token", refreshToken }
+                };
+                var formContent = new FormUrlEncodedContent(parameters);
+                response = await client.PostAsync($"{OsuBuildConfig.BaseAuthUrl}/oauth/token", formContent);
+            }
+            else
+#endif
+            {
+                Console.WriteLine("[OAuth] RefreshTokensAsync: Refreshing tokens via Proxy Worker...");
+                var payload = new
+                {
+                    grant_type = "refresh_token",
+                    refresh_token = refreshToken
+                };
+                var jsonContent = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+                response = await client.PostAsync(OsuBuildConfig.ProxyUrl, jsonContent);
+            }
+
             if (!response.IsSuccessStatusCode) return false;
 
             var json = await response.Content.ReadAsStringAsync();

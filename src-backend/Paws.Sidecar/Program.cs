@@ -91,21 +91,27 @@ class Program
                 }
                 if (string.IsNullOrWhiteSpace(input)) continue;
 
-                try
+                // Process commands concurrently to prevent long-running tasks (like waitForOsuCallback) 
+                // from blocking the stdin reader loop.
+                _ = Task.Run(async () =>
                 {
-                    Console.WriteLine($"[Sidecar] Input: {input}");
-                    
-                    var command = JsonSerializer.Deserialize<SidecarCommand>(input, _jsonOptions);
-                    if (command == null) continue;
+                    try
+                    {
+                        var command = JsonSerializer.Deserialize<SidecarCommand>(input, _jsonOptions);
+                        if (command == null) return;
 
-                    var result = await HandleCommand(command);
-                    Console.WriteLine(JsonSerializer.Serialize(result, _jsonOptions));
-                }
-                catch (Exception ex)
-                {
-                    var error = new SidecarResponse { Success = false, Error = ex.Message };
-                    Console.WriteLine(JsonSerializer.Serialize(error, _jsonOptions));
-                }
+                        Console.WriteLine($"[Sidecar] Input: {input}");
+                        
+                        var result = await HandleCommand(command);
+                        result.RequestId = command.RequestId;
+                        Console.WriteLine(JsonSerializer.Serialize(result, _jsonOptions));
+                    }
+                    catch (Exception ex)
+                    {
+                        var error = new SidecarResponse { Success = false, Error = ex.Message };
+                        Console.WriteLine(JsonSerializer.Serialize(error, _jsonOptions));
+                    }
+                });
             }
         }
         catch (Exception ex)
@@ -168,6 +174,7 @@ class Program
 
 public class SidecarCommand
 {
+    public string RequestId { get; set; } = string.Empty;
     public string Action { get; set; } = string.Empty;
     public string CallerId { get; set; } = "host";
     public Dictionary<string, JsonElement> Params { get; set; } = new();
@@ -175,6 +182,7 @@ public class SidecarCommand
 
 public class SidecarResponse
 {
+    public string RequestId { get; set; } = string.Empty;
     public bool Success { get; set; } = true;
     public object? Data { get; set; }
     public string? Error { get; set; }

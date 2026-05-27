@@ -32,3 +32,7 @@ src-tauri/binaries/*
 # System files
 .DS_Store
 Thumbs.db
+
+# Secrets and Dev Overrides
+build_dev.ps1
+paws.config.json

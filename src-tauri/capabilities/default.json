@@ -18,6 +18,7 @@
     "core:window:allow-show",
     "dialog:default",
     "log:default",
-    "shell:default"
+    "shell:default",
+    "deep-link:default"
   ]
 }

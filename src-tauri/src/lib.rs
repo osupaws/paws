@@ -36,18 +36,24 @@ fn get_pawsdata_dir() -> std::path::PathBuf {
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct SidecarCommand {
+    request_id: String,
     action: String,
     caller_id: String,
     params: std::collections::HashMap<String, serde_json::Value>,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 struct SidecarResponse {
+    request_id: Option<String>,
     success: bool,
     data: Option<serde_json::Value>,
     error: Option<String>,
+}
+
+struct ResponseRegistry {
+    pub map: std::sync::Mutex<std::collections::HashMap<String, SidecarResponse>>,
 }
 
 #[tauri::command]
@@ -80,45 +86,93 @@ async fn register_plugin_path(
 #[tauri::command]
 async fn call_sidecar(
     handle: tauri::State<'_, SidecarHandle>,
+    responses_state: tauri::State<'_, ResponseRegistry>,
     action: String,
     params: std::collections::HashMap<String, serde_json::Value>,
     caller_id: String,
 ) -> Result<SidecarResponse, String> {
-    let mut child_guard = handle.child.lock().await;
-    let mut rx_guard = handle.rx.lock().await;
-    let (ref mut rx, ref mut buffer) = *rx_guard;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static REQUEST_COUNTER: AtomicU64 = AtomicU64::new(0);
+    let request_id = REQUEST_COUNTER.fetch_add(1, Ordering::SeqCst).to_string();
 
-    let child = child_guard.as_mut().ok_or("Sidecar not initialized")?;
-
-    let cmd = SidecarCommand { action: action.clone(), caller_id, params };
+    let cmd = SidecarCommand { request_id: request_id.clone(), action: action.clone(), caller_id, params };
     let json_cmd = serde_json::to_string(&cmd).map_err(|e| e.to_string())? + "\r\n";
 
-    // 1. Send command
-    println!("[Rust Bridge] Sending: {} (Action: {})", json_cmd.trim(), action);
-    if let Err(e) = child.write(json_cmd.as_bytes()) {
-        eprintln!("[Rust Bridge] Error writing to sidecar: {}", e);
-        return Err(e.to_string());
+    // 1. Send command (scoped write to avoid locking Mutex during stdout recv await loop)
+    {
+        let mut child_guard = handle.child.lock().await;
+        let child = child_guard.as_mut().ok_or("Sidecar not initialized")?;
+        println!("[Rust Bridge] Sending: {} (Action: {})", json_cmd.trim(), action);
+        if let Err(e) = child.write(json_cmd.as_bytes()) {
+            eprintln!("[Rust Bridge] Error writing to sidecar: {}", e);
+            return Err(e.to_string());
+        }
     }
 
     // 2. Wait for response in stdout channel
-    // Сначала проверяем, нет ли уже готовой строки в буфере
     loop {
+        // Check if our response is already in the map (captured by another thread)
+        {
+            let mut map = responses_state.map.lock().unwrap();
+            if let Some(resp) = map.remove(&request_id) {
+                return Ok(resp);
+            }
+        }
+
+        // Lock rx_guard to read from stdout.
+        // If another thread is currently reading, we will block here.
+        // When they release the lock, we loop back and check the map again!
+        let mut rx_guard = match tokio::time::timeout(std::time::Duration::from_millis(100), handle.rx.lock()).await {
+            Ok(guard) => guard,
+            Err(_) => {
+                // Timeout acquiring the lock. Loop back to check if another thread read our response and placed it in the map!
+                continue;
+            }
+        };
+
+        let (ref mut rx, ref mut buffer) = *rx_guard;
+
+        // Check the map one more time under lock to prevent race conditions
+        {
+            let mut map = responses_state.map.lock().unwrap();
+            if let Some(resp) = map.remove(&request_id) {
+                return Ok(resp);
+            }
+        }
+
+        let mut read_new_data = false;
+
+        // Process lines in buffer
         while let Some(pos) = buffer.iter().position(|&b| b == b'\n') {
             let line_bytes = buffer.drain(..=pos).collect::<Vec<_>>();
             let line = String::from_utf8_lossy(&line_bytes);
             let trimmed = line.trim();
             if trimmed.is_empty() { continue; }
 
-            println!("[Sidecar STDOUT] {}", trimmed);
-            if let Ok(resp) = serde_json::from_str::<SidecarResponse>(trimmed) {
-                return Ok(resp);
+            if trimmed.starts_with("{") && trimmed.contains("\"requestId\"") {
+                if let Ok(resp) = serde_json::from_str::<SidecarResponse>(trimmed) {
+                    if let Some(ref resp_id) = resp.request_id {
+                        if resp_id == &request_id {
+                            return Ok(resp);
+                        } else {
+                            // Put it in the map for the other thread to find!
+                            let mut map = responses_state.map.lock().unwrap();
+                            map.insert(resp_id.clone(), resp);
+                        }
+                    }
+                }
+            } else {
+                // Non-JSON log line
+                println!("[Sidecar STDOUT] {}", trimmed);
             }
         }
 
+        // Read next chunk from stdout
         if let Some(event) = rx.recv().await {
             match &event {
                 CommandEvent::Stdout(bytes) => {
                     buffer.extend_from_slice(bytes);
+                    read_new_data = true;
                 },
                 CommandEvent::Stderr(bytes) => {
                     let line = String::from_utf8_lossy(bytes);
@@ -130,12 +184,13 @@ async fn call_sidecar(
                 },
                 _ => {}
             }
-        } else {
-            break;
+        }
+
+        // If we didn't get any new data, yield thread briefly
+        if !read_new_data {
+            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
         }
     }
-
-    Err("Backend sidecar disconnected or timed out".to_string())
 }
 
 pub struct SidecarHandle {
@@ -150,17 +205,54 @@ pub fn run() {
   tauri::Builder::default()
     .manage(StartupTime(start_time))
     .manage(PluginRegistry { paths: std::sync::Mutex::new(std::collections::HashMap::new()) })
-    .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+    .manage(ResponseRegistry { map: std::sync::Mutex::new(std::collections::HashMap::new()) })
+    .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        println!("[Rust] Single-instance triggered. Args: {:?}", args);
         let _ = app.get_webview_window("main").map(|w| {
            let _ = w.show();
            let _ = w.unminimize();
            let _ = w.set_focus();
            let _ = w.emit("paws://window-show", ());
         });
+        for arg in args {
+            println!("[Rust] Inspecting arg: {}", arg);
+            if arg.starts_with("paws://") {
+                println!("[Rust] Emitting paws-deep-link with arg: {}", arg);
+                let _ = app.emit("paws-deep-link", &arg);
+
+                // Directly write to C# sidecar!
+                let app_clone = app.clone();
+                let arg_clone = arg.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Some(handle) = app_clone.try_state::<SidecarHandle>() {
+                        let mut child_guard = handle.child.lock().await;
+                        if let Some(ref mut child) = *child_guard {
+                            let mut params = std::collections::HashMap::new();
+                            params.insert("url".to_string(), serde_json::Value::String(arg_clone));
+                            let cmd = SidecarCommand {
+                                request_id: "unsolicited".to_string(),
+                                action: "handleOsuCallback".to_string(),
+                                caller_id: "host".to_string(),
+                                params,
+                            };
+                            if let Ok(json_cmd) = serde_json::to_string(&cmd) {
+                                let json_cmd = json_cmd + "\r\n";
+                                if let Err(e) = child.write(json_cmd.as_bytes()) {
+                                    eprintln!("[Rust] Direct sidecar write error: {}", e);
+                                } else {
+                                    println!("[Rust] Sent handleOsuCallback directly to sidecar from single-instance");
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
     }))
     .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--autostart"])))
     .plugin(tauri_plugin_shell::init())
     .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_deep_link::init())
     .register_uri_scheme_protocol("pawsapp", |_app, request| {
       let path = request.uri().path().trim_start_matches('/');
       
@@ -298,6 +390,12 @@ pub fn run() {
     .setup(|app| {
         use tauri::Manager;
 
+        #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+        {
+          use tauri_plugin_deep_link::DeepLinkExt;
+          app.deep_link().register("paws")?;
+        }
+
         if cfg!(debug_assertions) {
           app.handle().plugin(
             tauri_plugin_log::Builder::default()
@@ -380,6 +478,30 @@ pub fn run() {
             child: Mutex::new(Some(child)),
             rx: Mutex::new((rx, Vec::new())),
         });
+
+        // Check if we were launched with a deep link directly (first instance launch)
+        for arg in std::env::args() {
+            if arg.starts_with("paws://") {
+                println!("[Rust] First instance launched with deep link: {}", arg);
+                let handle = app.state::<SidecarHandle>();
+                let mut child_guard = tauri::async_runtime::block_on(handle.child.lock());
+                if let Some(ref mut child) = *child_guard {
+                    let mut params = std::collections::HashMap::new();
+                    params.insert("url".to_string(), serde_json::Value::String(arg.clone()));
+                    let cmd = SidecarCommand {
+                        request_id: "unsolicited".to_string(),
+                        action: "handleOsuCallback".to_string(),
+                        caller_id: "host".to_string(),
+                        params,
+                    };
+                    if let Ok(json_cmd) = serde_json::to_string(&cmd) {
+                        let json_cmd = json_cmd + "\r\n";
+                        let _ = child.write(json_cmd.as_bytes());
+                        println!("[Rust] Sent handleOsuCallback directly to sidecar from setup");
+                    }
+                }
+            }
+        }
 
         Ok(())
     })

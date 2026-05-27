@@ -16,6 +16,7 @@ public interface IOsuAuthService
 {
     string InitiateLogin();
     Task<bool> WaitForCallbackAsync(int timeoutSeconds = 120);
+    bool HandleCallback(string url);
     Task<string?> GetAccessTokenAsync();
     Task<OsuProfile?> GetProfileAsync(bool forceRefresh = false);
     Task LogoutAsync();

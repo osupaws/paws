@@ -47,7 +47,8 @@ public class SystemHandler : IRpcHandler
         action == "waitForOsuCallback" ||
         action == "getOsuAccessToken" ||
         action == "getOsuProfile" ||
-        action == "logoutOsu";
+        action == "logoutOsu" ||
+        action == "handleOsuCallback";
 
     public async Task<object?> HandleAsync(string action, string callerId, Dictionary<string, JsonElement> parameters)
     {
@@ -133,6 +134,13 @@ public class SystemHandler : IRpcHandler
             case "logoutOsu":
                 await _auth.LogoutAsync();
                 return true;
+
+            case "handleOsuCallback":
+                if (parameters.TryGetValue("url", out var urlEl))
+                {
+                    return _auth.HandleCallback(urlEl.GetString() ?? "");
+                }
+                throw new ArgumentException("Missing 'url' parameter");
 
             default:
                 // Handle remaining legacy commands...

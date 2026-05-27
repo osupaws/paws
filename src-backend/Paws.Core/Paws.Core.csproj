@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Paws.Abstractions\Paws.Abstractions.csproj" />
@@ -13,6 +13,43 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Default empty constants for dev/forkers -->
+    <OsuClientId Condition="'$(OsuClientId)' == ''"></OsuClientId>
+    <OsuBaseAuthUrl Condition="'$(OsuBaseAuthUrl)' == ''">https://osu.ppy.sh</OsuBaseAuthUrl>
+    <OsuProxyUrl Condition="'$(OsuProxyUrl)' == ''"></OsuProxyUrl>
+    <OsuRedirectUrl Condition="'$(OsuRedirectUrl)' == ''">paws://oauth/callback</OsuRedirectUrl>
+    <OsuClientSecret Condition="'$(OsuClientSecret)' == ''"></OsuClientSecret>
   </PropertyGroup>
+
+  <!-- Define a compilation constant if the client secret is provided at compile time -->
+  <PropertyGroup Condition="'$(OsuClientSecret)' != ''">
+    <DefineConstants>$(DefineConstants);HAS_CLIENT_SECRET</DefineConstants>
+  </PropertyGroup>
+
+  <!-- Generate build constants at compile-time inside obj/ -->
+  <Target Name="GenerateOsuBuildConfig" BeforeTargets="BeforeCompile">
+    <PropertyGroup>
+      <GeneratedFilePath>$(IntermediateOutputPath)OsuBuildConfig.g.cs</GeneratedFilePath>
+      <GeneratedCode>
+<![CDATA[
+// Auto-generated build config. Do not modify.
+namespace Paws.Core.Services;
+
+public static class OsuBuildConfig
+{
+    public const string ClientId = "$(OsuClientId)";
+    public const string BaseAuthUrl = "$(OsuBaseAuthUrl)";
+    public const string ProxyUrl = "$(OsuProxyUrl)";
+    public const string RedirectUrl = "$(OsuRedirectUrl)";
+    public const string ClientSecret = "$(OsuClientSecret)";
+}
+]]>
+      </GeneratedCode>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(GeneratedFilePath)" Lines="$(GeneratedCode)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <Compile Include="$(GeneratedFilePath)" />
+    </ItemGroup>
+  </Target>
 
 </Project>

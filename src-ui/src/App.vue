@@ -98,6 +98,11 @@ const onGlobalKeydown = (e: KeyboardEvent) => {
   handleEscape(e);
 };
 
+const handleAvatarError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.src = "/default-avatar.png";
+};
+
 // Обещание, которое дождется SplashScreen
 const initConfigPromise = ref<Promise<void> | null>(null);
 
@@ -107,7 +112,34 @@ onMounted(async () => {
   initPawsBridge();
   fetchProfile();
 
-  // Перехват закрытия: прячем в трей, если включено
+  // Listen to deep links from single-instance
+  listen<string>("paws-deep-link", (event) => {
+    const url = event.payload;
+    console.log("[DeepLink] Received single-instance URL:", url);
+    // Handled directly by Rust-to-Sidecar bridge unsolicited command
+  });
+
+  // Listen to deep links from plugin directly
+  try {
+    import("@tauri-apps/plugin-deep-link")
+      .then(({ onOpenUrl }) => {
+        onOpenUrl((urls: string[]) => {
+          console.log("[DeepLink] Received URLs:", urls);
+          for (const url of urls) {
+            if (url.startsWith("paws://")) {
+              // Handled directly by Rust-to-Sidecar bridge unsolicited command
+            }
+          }
+        });
+      })
+      .catch((e) =>
+        console.error("[DeepLink] import plugin-deep-link failed:", e),
+      );
+  } catch (e) {
+    console.error("[DeepLink] Failed to register onOpenUrl:", e);
+  }
+
+  // hide in tray on close
   appWindow.onCloseRequested(async (event) => {
     console.log("[App] Close requested. Params:", {
       isHideInTray: configState.isHideInTrayOnClose,
@@ -221,7 +253,11 @@ const handleReady = async () => {
               @click="toggleMenu"
               @mousedown.stop
             >
-              <img :src="profileState.avatarUrl" class="nav-avatar" />
+              <img
+                :src="profileState.avatarUrl"
+                class="nav-avatar"
+                @error="handleAvatarError"
+              />
               <span class="nav-username">{{ profileState.username }}</span>
             </button>
           </div>
